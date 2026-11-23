@@ -1,0 +1,725 @@
+<!doctype html>
+<!-- Spoke Shot. Copyright (c) 2026 Bretton. All rights reserved. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spoke Shot</title>
+<meta name="description" content="Tap to fire spokes into a spinning hub without hitting another one. The levels never run out.">
+<meta name="theme-color" content="#F1F8FC">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Spoke Shot">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/bagel-fat-one-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/atkinson-hyperlegible-700.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* Fonts ship with the game (SIL Open Font License, see fonts/), so it works offline. */
+@font-face{font-family:"Bagel Fat One";font-style:normal;font-weight:400;font-display:swap;src:url("fonts/bagel-fat-one-400.woff2") format("woff2")}
+@font-face{font-family:"Atkinson Hyperlegible";font-style:normal;font-weight:400;font-display:swap;src:url("fonts/atkinson-hyperlegible-400.woff2") format("woff2")}
+@font-face{font-family:"Atkinson Hyperlegible";font-style:normal;font-weight:700;font-display:swap;src:url("fonts/atkinson-hyperlegible-700.woff2") format("woff2")}
+
+/* Layout: one full-height stage. Level strip on top, hub spinning in the upper half, launcher at the bottom, result cards rise over the launcher. Every 10 levels a new "world" swaps these tokens from script. */
+:root{
+  --bg:#CFE8F3;
+  --bg2:#F1F8FC;
+  --ink:#1F2D4D;
+  --muted:#51607E;
+  --hub:#E8453C;
+  --hub-ink:#FFF4D2;
+  --accent:#F6B930;
+  --card:#FFFFFF;
+  --danger:#D93A3A;
+  --font-display:"Bagel Fat One","Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif;
+  --font-ui:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+[hidden]{display:none!important}
+html{height:100%;box-sizing:border-box;overflow:hidden;touch-action:manipulation}
+body{
+  height:100%;margin:0;overflow:hidden;box-sizing:border-box;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--bg);
+  background-image:linear-gradient(180deg,var(--bg2) 0%,var(--bg) 78%);
+  color:var(--ink);font-family:var(--font-ui);font-size:14px;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;overscroll-behavior:none;
+}
+#stage{position:relative;height:100%}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+.hud{position:absolute;top:0;left:0;right:0;height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none}
+.hud>*{pointer-events:auto}
+.lvl{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lvl-num{font-family:var(--font-display);font-size:26px;line-height:1;letter-spacing:.01em}
+.lvl-world{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud-btns{display:flex;gap:8px;flex:none}
+.icon-btn{width:44px;height:44px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;color:var(--ink);background:var(--card);background:color-mix(in srgb,var(--card) 70%,transparent);cursor:pointer}
+#soundBtn[aria-pressed="true"] .snd-on{display:none}
+#soundBtn:not([aria-pressed="true"]) .snd-off{display:none}
+
+.toast{position:absolute;left:0;right:0;margin:0;text-align:center;font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);opacity:0;transition:opacity .35s;pointer-events:none}
+.toast.show{opacity:1}
+
+.card{
+  position:absolute;left:0;right:0;bottom:16px;margin-inline:auto;width:min(380px,100%);box-sizing:border-box;
+  display:flex;flex-direction:column;gap:10px;padding:20px 20px 18px;border-radius:24px;
+  background:var(--card);color:var(--ink);
+  box-shadow:0 20px 44px -20px color-mix(in srgb,var(--ink) 60%,transparent),0 2px 0 color-mix(in srgb,var(--ink) 10%,transparent);
+}
+.card.rise{animation:rise .34s cubic-bezier(.2,.9,.3,1.15)}
+@keyframes rise{from{transform:translateY(18px);opacity:.55}to{transform:none;opacity:1}}
+.eyebrow{margin:0;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--hub)}
+.card-title{margin:0;font-family:var(--font-display);font-weight:400;font-size:34px;line-height:1.02;text-wrap:balance}
+.card[data-kind="title"] .card-title{font-size:clamp(44px,13vw,58px)}
+.card-body{margin:0;font-size:15.5px;line-height:1.45;color:var(--muted);max-width:42ch}
+.save-note{margin:0;font-size:12.5px;line-height:1.4;color:var(--muted)}
+.save-note.warn{color:var(--danger);font-weight:700}
+.card-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.btn{flex:1 1 140px;min-height:52px;padding:0 18px;border-radius:999px;font:700 17px/1 var(--font-ui);cursor:pointer}
+.btn.primary{border:0;background:var(--hub);color:var(--hub-ink);box-shadow:0 3px 0 color-mix(in srgb,var(--hub) 62%,#000)}
+.btn.primary:active{transform:translateY(2px);box-shadow:0 1px 0 color-mix(in srgb,var(--hub) 62%,#000)}
+.btn.ghost{background:transparent;color:var(--ink);border:2px solid color-mix(in srgb,var(--ink) 24%,transparent)}
+
+.stepper{display:flex;align-items:center;gap:6px;margin-top:2px}
+.step{flex:none;width:48px;height:48px;border-radius:14px;border:0;background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink);font:700 16px/1 var(--font-ui);cursor:pointer}
+.step:disabled{opacity:.35;cursor:default}
+.pick{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.pick output{font-family:var(--font-display);font-size:42px;line-height:1;font-variant-numeric:tabular-nums}
+.pick span{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.link-btn{align-self:flex-start;background:none;border:0;padding:6px 0;color:var(--muted);font:700 13px/1.2 var(--font-ui);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.link-btn.armed{color:var(--danger)}
+
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;margin:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion: reduce){.card.rise{animation:none}.toast{transition:none}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv" role="img" aria-label="A spinning hub with spokes stuck in it"></canvas>
+
+  <header class="hud">
+    <div class="lvl">
+      <span class="lvl-num" id="lvlNum">Level 1</span>
+      <span class="lvl-world" id="lvlWorld">Daybreak · 1 of 10</span>
+    </div>
+    <div class="hud-btns">
+      <button class="icon-btn" id="soundBtn" type="button" aria-label="Mute sound" aria-pressed="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/>
+          <path class="snd-on" d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a8 8 0 0 1 0 11"/>
+          <path class="snd-off" d="M16 9.5l5 5M21 9.5l-5 5"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="menuBtn" type="button" aria-label="Levels">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.2"/>
+          <path d="M12 3.5v6.3M12 14.2v6.3M3.5 12h6.3M14.2 12h6.3"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <p class="toast" id="toast" aria-hidden="true"></p>
+
+  <section class="card" id="card" data-kind="title" aria-labelledby="cardTitle">
+    <p class="eyebrow" id="cardEyebrow">Tap to fire · Don’t touch</p>
+    <h1 class="card-title" id="cardTitle">Spoke Shot</h1>
+    <p class="card-body" id="cardBody">Fire every spoke into the spinning hub without hitting another one. Clear a wheel to unlock the next. The levels never run out.</p>
+    <p class="save-note" id="saveNote" hidden></p>
+    <div class="stepper" id="stepper" hidden>
+      <button class="step" type="button" data-step="-10" aria-label="Back 10 levels">−10</button>
+      <button class="step" type="button" data-step="-1" aria-label="Back 1 level">−1</button>
+      <div class="pick"><output id="pickOut" aria-live="polite">1</output><span id="pickWorld">Daybreak</span></div>
+      <button class="step" type="button" data-step="1" aria-label="Forward 1 level">+1</button>
+      <button class="step" type="button" data-step="10" aria-label="Forward 10 levels">+10</button>
+    </div>
+    <div class="card-actions">
+      <button class="btn primary" id="primaryBtn" type="button">Play level 1</button>
+      <button class="btn ghost" id="secondaryBtn" type="button" hidden>Pick a level</button>
+    </div>
+    <button class="link-btn" id="resetBtn" type="button" hidden>Reset progress</button>
+  </section>
+
+  <p class="sr" id="sr" aria-live="polite"></p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const stage = $('stage'), cv = $('cv'), ctx = cv.getContext('2d');
+  const card = $('card'), cardEyebrow = $('cardEyebrow'), cardTitle = $('cardTitle'), cardBody = $('cardBody');
+  const stepper = $('stepper'), pickOut = $('pickOut'), pickWorld = $('pickWorld');
+  const primaryBtn = $('primaryBtn'), secondaryBtn = $('secondaryBtn'), resetBtn = $('resetBtn');
+  const soundBtn = $('soundBtn'), menuBtn = $('menuBtn'), toastEl = $('toast'), srEl = $('sr'), saveNote = $('saveNote');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  // ---- Tuning -------------------------------------------------------------
+  const STORE = 'spoke-shot.v1';
+  const BEAD = 0.0735;   // bead radius as a share of the orbit radius (about 42 beads fit edge to edge)
+  const MAX_TOTAL = 22;  // most spokes one hub ever carries, preset + fired
+  const HIT = 0.88;      // beads may overlap a little before it counts as a hit
+  const DISPLAY = '"Bagel Fat One","Arial Rounded MT Bold",sans-serif';
+  const UI = '"Atkinson Hyperlegible",system-ui,sans-serif';
+
+  const WORLDS = [
+    { name:'Daybreak', bg:'#CFE8F3', bg2:'#F1F8FC', ink:'#1F2D4D', muted:'#51607E', hub:'#E8453C', hubInk:'#FFF4D2', accent:'#F6B930', card:'#FFFFFF', beadInk:'#FFFFFF', danger:'#D93A3A', dark:false },
+    { name:'Meadow',   bg:'#CDE8C1', bg2:'#F0F8EA', ink:'#203326', muted:'#4C6352', hub:'#2E7A4B', hubInk:'#F4F9D9', accent:'#F2B630', card:'#FFFFFF', beadInk:'#FFFFFF', danger:'#D93A3A', dark:false },
+    { name:'Harbor',   bg:'#B9D9D3', bg2:'#E8F3F0', ink:'#13233F', muted:'#46586F', hub:'#1F4F8C', hubInk:'#FDE9C9', accent:'#F28B3B', card:'#FFFFFF', beadInk:'#FFFFFF', danger:'#D93A3A', dark:false },
+    { name:'Ember',    bg:'#FFD3BD', bg2:'#FFF0E7', ink:'#3A1B12', muted:'#7A4A3A', hub:'#B4302A', hubInk:'#FFE7A6', accent:'#F0A100', card:'#FFFFFF', beadInk:'#FFFFFF', danger:'#E8590C', dark:false },
+    { name:'Midnight', bg:'#121A33', bg2:'#25335E', ink:'#E9EEF8', muted:'#A9B5D3', hub:'#F2C14E', hubInk:'#121A33', accent:'#7FD1C7', card:'#1B2546', beadInk:'#121A33', danger:'#FF6B6B', dark:true },
+    { name:'Aurora',   bg:'#0C2529', bg2:'#18454C', ink:'#E6F6F1', muted:'#9DC3BC', hub:'#FF8FB1', hubInk:'#0C2529', accent:'#7DE2C3', card:'#133338', beadInk:'#0C2529', danger:'#FF6B6B', dark:true },
+  ];
+  const MODE_TEXT = { steady:'Steady spin', reverse:'Reverses', pulse:'Surges', swing:'Rocks back', stopgo:'Stop and go', flip:'Flips on every hit' };
+  const MODE_UNLOCK = { reverse:6, pulse:12, swing:18, flip:24, stopgo:32 };
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  function roman(k){ return ['', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][k] || String(k + 1); }
+  function worldOf(n){
+    const w = Math.floor((n - 1) / 10), p = WORLDS[w % WORLDS.length], cycle = Math.floor(w / WORLDS.length);
+    return { p, name: p.name + (cycle ? ' ' + roman(cycle) : ''), idx: ((n - 1) % 10) + 1 };
+  }
+
+  // ---- Levels: built from the level number, so level 37 is always the same wheel ----
+  function mulberry32(a){
+    return function(){
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function makeLevel(n){
+    const r = mulberry32((Math.imul(n, 2654435761) ^ 0x9E3779B9) >>> 0);
+    r(); r();
+    const boss = n % 10 === 0;
+    const fire = Math.min(5 + Math.floor(n * 0.4) + (boss ? 3 : 0), boss ? 19 : 16);
+    let pre = Math.min(1 + Math.floor(n * 0.28) + (r() < 0.5 ? 1 : 0), 10);
+    if (n === 1) pre = 1;
+    pre = clamp(pre, 0, MAX_TOTAL - fire);
+    const speed = Math.min(2.45, 0.95 + 1.45 * (1 - Math.exp(-n / 28)) + (r() - 0.5) * 0.16);
+
+    let newMode = null;
+    for (const m in MODE_UNLOCK) if (MODE_UNLOCK[m] === n) newMode = m;
+    const pool = ['steady'];
+    for (const m of ['reverse', 'pulse', 'swing', 'stopgo']) if (n >= MODE_UNLOCK[m]) pool.push(m);
+    let mode = 'steady';
+    if (newMode && newMode !== 'flip') mode = newMode;
+    else if (n >= 6 && newMode !== 'flip') mode = r() < 0.3 ? pool[pool.length - 1] : pool[Math.floor(r() * pool.length)];
+    const flip = newMode === 'flip' || (n > MODE_UNLOCK.flip && r() < (n >= 40 ? 0.35 : 0.2));
+
+    const dir = r() < 0.5 ? 1 : -1;
+    const period = 2.4 + r() * 2.2;
+    const angles = [];
+    if (pre > 0){
+      const spacing = (Math.PI * 2) / pre;
+      const minGap = 2 * Math.asin(BEAD) * 1.35;
+      const slack = Math.max(0, (spacing - minGap) / 2) * 0.8;
+      const off = r() * Math.PI * 2;
+      for (let i = 0; i < pre; i++) angles.push(off + i * spacing + (r() * 2 - 1) * slack);
+    }
+    return { n, boss, fire, pre, speed, mode, flip, dir, period, angles, newMode };
+  }
+  function levelBlurb(L){
+    const parts = [];
+    if (L.boss) parts.push('Big wheel');
+    parts.push(L.fire + ' spokes');
+    if (L.mode !== 'steady') parts.push((L.newMode === L.mode ? 'New: ' : '') + MODE_TEXT[L.mode]);
+    if (L.flip) parts.push((L.newMode === 'flip' ? 'New: ' : '') + MODE_TEXT.flip);
+    return parts.join(' · ');
+  }
+
+  // ---- State ----------------------------------------------------------------
+  const game = {
+    level: 1, L: null, state: 'title',
+    angle: 0, t: 0, stuck: [], queue: 0, flying: [], fired: 0,
+    flipSign: 1, shake: 0, bump: 0, hit: null, winT: 0, readyAt: 0,
+  };
+  let best = 1, muted = false, menuFrom = 'title', pick = 1, P = WORLDS[0];
+
+  // ---- Saving ----------------------------------------------------------------
+  // Progress is three small facts: furthest level, current level, sound on/off.
+  // It is kept in this browser's storage, and also in your claude.ai account when the game runs
+  // inside claude.ai (some browsers and the Claude app don't keep browser storage there).
+  const saver = { local: false, hadLocal: false, cloud: null, cloudState: 'none', writing: false, pending: false, retried: false, lastCloud: '' };
+  function probeLocal(){
+    try { const k = STORE + '.probe'; localStorage.setItem(k, '1'); const ok = localStorage.getItem(k) === '1'; localStorage.removeItem(k); return ok; }
+    catch (e) { return false; }
+  }
+  function loadLocal(){
+    if (!saver.local) return {};
+    try { const s = JSON.parse(localStorage.getItem(STORE) || '{}'); return s && typeof s === 'object' ? s : {}; } catch (e) { return {}; }
+  }
+  function resumeLevel(){ return game.state === 'won' ? Math.min(best, game.level + 1) : game.level; }
+  function progress(){ return { best, level: resumeLevel(), muted }; }
+  function save(){
+    if (saver.local){ try { localStorage.setItem(STORE, JSON.stringify(progress())); } catch (e) { saver.local = false; renderSaveNote(); } }
+    saveCloud();
+  }
+  async function saveCloud(){
+    if (!saver.cloud) return;
+    if (saver.writing){ saver.pending = true; return; }
+    const body = progress(), key = JSON.stringify(body);
+    if (key === saver.lastCloud) return;
+    saver.writing = true;
+    let retry = false;
+    try {
+      await saver.cloud.set(body);
+      saver.lastCloud = key; saver.retried = false;
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'unavailable' && !saver.retried){ saver.retried = true; retry = true; }
+      else if (code !== 'unavailable' && code !== 'resource_exhausted'){ saver.cloud = null; saver.cloudState = 'none'; renderSaveNote(); }
+    } finally {
+      saver.writing = false;
+    }
+    if (retry) setTimeout(saveCloud, 800 + Math.random() * 1200);
+    else if (saver.pending){ saver.pending = false; saveCloud(); }
+  }
+  async function connectCloud(){
+    const c = window.claude;
+    if (!c || typeof c.use !== 'function') return; // not inside claude.ai
+    saver.cloudState = 'connecting'; renderSaveNote();
+    let db = null, user = null, uid = null;
+    try { db = await c.use('db'); user = await c.use('user'); uid = user ? await user.id() : null; } catch (e) {}
+    if (!db || !uid){ saver.cloudState = 'none'; renderSaveNote(); return; }
+    let snap;
+    try {
+      const ref = db.doc('data/users/' + uid + '/progress');
+      snap = await Promise.race([ref.get(), new Promise((_, reject) => setTimeout(() => reject({ code: 'timeout' }), 10000))]);
+      saver.cloud = ref;
+    } catch (e) { saver.cloudState = 'none'; renderSaveNote(); return; }
+    const d = snap.exists ? snap.data() : null;
+    if (d){
+      const cloudBest = Math.max(1, Number(d.best) | 0);
+      saver.lastCloud = JSON.stringify({ best: cloudBest, level: Number(d.level) | 0, muted: !!d.muted });
+      const ahead = cloudBest > best;
+      best = Math.max(best, cloudBest);
+      if (!saver.hadLocal && typeof d.muted === 'boolean'){ muted = d.muted; soundBtn.setAttribute('aria-pressed', String(muted)); }
+      if (game.state === 'title' && (ahead || !saver.hadLocal)){ loadLevel(clamp((Number(d.level) | 0) || best, 1, best)); showCard('title'); }
+      else if (game.state === 'title'){ secondaryBtn.hidden = best <= 1; }
+      else if (game.state === 'menu'){ cardEyebrow.textContent = 'Furthest level: ' + best; updatePick(); }
+    }
+    saver.cloudState = 'on';
+    renderSaveNote();
+    save(); // brings the account copy up to date if this browser was ahead
+  }
+  function renderSaveNote(){
+    if (saveNote.hidden) return;
+    let text, warn = false;
+    if (saver.cloudState === 'on') text = 'Progress saves to your Claude account.';
+    else if (saver.cloudState === 'connecting') text = 'Checking your Claude account for saved progress…';
+    else if (saver.local) text = window.claude ? 'Progress saves in this browser only.' : 'Progress saves on this device.';
+    else { text = 'This browser isn’t keeping progress, so it resets when you close the game. Private browsing can cause this.'; warn = true; }
+    saveNote.textContent = text;
+    saveNote.classList.toggle('warn', warn);
+  }
+
+  function applyPalette(p){
+    P = p;
+    const s = document.documentElement.style;
+    s.setProperty('--bg', p.bg); s.setProperty('--bg2', p.bg2); s.setProperty('--ink', p.ink);
+    s.setProperty('--muted', p.muted); s.setProperty('--hub', p.hub); s.setProperty('--hub-ink', p.hubInk);
+    s.setProperty('--accent', p.accent); s.setProperty('--card', p.card); s.setProperty('--danger', p.danger);
+    s.colorScheme = p.dark ? 'dark' : 'light';
+    if (themeMeta) themeMeta.setAttribute('content', p.bg2);
+  }
+
+  function loadLevel(n){
+    game.level = n; game.L = makeLevel(n);
+    game.stuck = game.L.angles.map((a) => ({ a, label: 0, born: 0 }));
+    game.queue = game.L.fire; game.flying = []; game.fired = 0;
+    game.angle = 0; game.t = 0; game.flipSign = 1; game.shake = 0; game.bump = 0; game.hit = null; game.winT = 0;
+    const w = worldOf(n);
+    applyPalette(w.p);
+    $('lvlNum').textContent = 'Level ' + n;
+    $('lvlWorld').textContent = w.name + ' · ' + (game.L.boss ? 'big wheel' : w.idx + ' of 10');
+  }
+
+  // ---- Spin ----------------------------------------------------------------
+  function omega(t){
+    const L = game.L, s = L.speed, d = L.dir * game.flipSign, ph = (Math.PI * 2 * t) / L.period;
+    switch (L.mode){
+      case 'reverse': return s * d * clamp((Math.sin(ph) + 0.35) * 2.5, -0.8, 1);
+      case 'pulse':   return s * d * (0.4 + 0.8 * (0.5 + 0.5 * Math.sin(ph)));
+      case 'swing':   return s * d * (0.35 + 1.15 * Math.sin(ph));
+      case 'stopgo': { const v = Math.sin(ph) + 0.35; return v > 0 ? s * 1.35 * d * Math.min(1, v * 1.6) : 0; }
+      default:        return s * d;
+    }
+  }
+
+  // ---- Layout --------------------------------------------------------------
+  const geo = { W: 1, H: 1, dpr: 1, cx: 0, cy: 0, R: 0, O: 0, br: 0, launchY: 0, V: 0 };
+  function layout(){
+    const rect = stage.getBoundingClientRect();
+    const W = Math.max(1, rect.width), H = Math.max(1, rect.height);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const top = 64, avail = Math.max(120, H - top);
+    const O = Math.max(40, Math.min(W * 0.42, avail * 0.25));
+    const br = O * BEAD;
+    const cy = top + O + br + Math.max(12, avail * 0.04);
+    const launchY = Math.max(H - (br * 2.7 * 3 + br + 22), cy + O + br * 5);
+    Object.assign(geo, { W, H, dpr, cx: W / 2, cy, R: O * 0.42, O, br, launchY, V: O * 9 });
+    toastEl.style.top = Math.round((cy + O + br + launchY - br * 2) / 2 - 9) + 'px';
+  }
+
+  // ---- Sound ---------------------------------------------------------------
+  let ac = null;
+  function audio(){
+    if (muted) return null;
+    try {
+      if (!ac){ const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; ac = new C(); }
+      if (ac.state === 'suspended') ac.resume();
+      return ac;
+    } catch (e) { return null; }
+  }
+  function tone(freq, dur, type, vol, slideTo){
+    const a = audio(); if (!a) return;
+    const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + dur + 0.03);
+  }
+  const SCALE = [0, 2, 4, 7, 9];
+  const sfx = {
+    fire(){ tone(700, 0.06, 'square', 0.03, 1100); },
+    stick(i){ const st = Math.min(SCALE[i % 5] + 12 * Math.floor(i / 5), 26); const f = 220 * Math.pow(2, st / 12); tone(f, 0.16, 'triangle', 0.22); tone(f * 2, 0.06, 'sine', 0.05); },
+    fail(){ tone(180, 0.38, 'sawtooth', 0.13, 60); tone(120, 0.42, 'square', 0.05, 50); },
+    win(){ [0, 4, 7, 12, 16].forEach((s, i) => setTimeout(() => tone(392 * Math.pow(2, s / 12), 0.2, 'triangle', 0.15), i * 85)); },
+  };
+  function unlockAudio(){ if (!muted) audio(); }
+
+  // ---- Play ----------------------------------------------------------------
+  function fire(){
+    if (game.state !== 'play' || game.queue <= 0) return;
+    game.flying.push({ y: geo.launchY, label: game.queue });
+    game.queue--;
+    sfx.fire();
+  }
+
+  function step(dt){
+    const st = game.state;
+    const frozen = st === 'lost' || (st === 'menu' && (menuFrom === 'play' || menuFrom === 'lost'));
+    if (!frozen){
+      game.t += dt;
+      let w = omega(game.t);
+      if (st === 'won' && !reduced) w += (Math.sign(w) || game.L.dir) * 9 * Math.min(1, game.winT * 4) * Math.exp(-game.winT * 1.6);
+      game.angle += w * dt;
+      if (st === 'won') game.winT += dt;
+    }
+    if (st !== 'play') return;
+
+    const { cx, cy, O, br, V } = geo, stopY = cy + O, reach = 2 * br * HIT;
+    for (let i = 0; i < game.flying.length; i++){
+      const f = game.flying[i];
+      f.y -= V * dt;
+      const fy = Math.max(f.y, stopY);
+      for (const s of game.stuck){
+        const th = s.a + game.angle;
+        if (Math.hypot(cx + O * Math.cos(th) - cx, cy + O * Math.sin(th) - fy) < reach){ f.y = fy; lose(f, s); return; }
+      }
+      if (f.y <= stopY){
+        game.flying.splice(i, 1); i--;
+        game.stuck.push({ a: Math.PI / 2 - game.angle, label: f.label, born: performance.now() });
+        game.fired++; game.bump = 1;
+        if (game.L.flip) game.flipSign *= -1;
+        sfx.stick(game.fired - 1);
+        if (game.queue === 0 && game.flying.length === 0){ win(); return; }
+      }
+    }
+  }
+
+  function update(dt){
+    const travel = game.state === 'play' && game.flying.length ? geo.V * dt : 0;
+    const sweep = Math.abs(omega(game.t)) * dt * geo.O;
+    const n = clamp(Math.ceil(Math.max(travel, sweep) / (geo.br * 0.5)), 1, 16);
+    for (let i = 0; i < n; i++) step(dt / n);
+    game.bump = Math.max(0, game.bump - dt * 6);
+    game.shake = Math.max(0, game.shake - dt * 2.2);
+  }
+
+  function lose(f, s){
+    game.state = 'lost'; game.hit = { f, s }; game.shake = 1;
+    sfx.fail();
+    announce('Spokes crossed on level ' + game.level + '.');
+    game.readyAt = performance.now() + 550;
+    setTimeout(() => { if (game.state === 'lost') showCard('lost'); }, 450);
+  }
+  function win(){
+    game.state = 'won'; game.winT = 0;
+    sfx.win();
+    best = Math.max(best, game.level + 1);
+    save();
+    announce('Level ' + game.level + ' cleared.');
+    game.readyAt = performance.now() + 700;
+    setTimeout(() => { if (game.state === 'won') showCard('won'); }, 600);
+  }
+
+  // ---- Drawing -------------------------------------------------------------
+  function disc(x, y, r, fill){ ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+  function bead(x, y, r, fill, label){
+    disc(x, y, r, fill);
+    if (!label) return;
+    ctx.fillStyle = P.beadInk;
+    ctx.font = '700 ' + Math.round(r * (label >= 10 ? 0.95 : 1.12)) + 'px ' + UI;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(label), x, y + r * 0.07);
+  }
+
+  function draw(now){
+    const { W, H, dpr, cx, cy, R, O, br, launchY } = geo;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (game.shake > 0 && !reduced){
+      const m = game.shake * game.shake * 9;
+      ctx.translate((Math.random() * 2 - 1) * m, (Math.random() * 2 - 1) * m);
+    }
+    const A = game.angle, hit = game.hit, L = game.L;
+    ctx.lineCap = 'round';
+
+    // spokes
+    ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1.5, br * 0.2);
+    ctx.beginPath();
+    for (const s of game.stuck){
+      const c = Math.cos(s.a + A), sn = Math.sin(s.a + A);
+      ctx.moveTo(cx + c * R * 0.8, cy + sn * R * 0.8);
+      ctx.lineTo(cx + c * O, cy + sn * O);
+    }
+    ctx.stroke();
+
+    // beads on the hub
+    game.stuck.forEach((s, i) => {
+      const th = s.a + A;
+      let sc = 1;
+      if (game.state === 'won' && !reduced){ const k = game.winT * 10 - i * 0.55; sc += 0.35 * Math.max(0, 1 - Math.abs(k - 1)); }
+      if (s.born){ const age = (now - s.born) / 1000; if (age < 0.18) sc *= 1 + 0.3 * (1 - age / 0.18); }
+      bead(cx + Math.cos(th) * O, cy + Math.sin(th) * O, br * sc, hit && hit.s === s ? P.danger : P.ink, s.label);
+    });
+
+    // hub
+    const hr = R * (1 + game.bump * 0.05);
+    disc(cx, cy, hr, P.hub);
+    const ringR = hr * 0.8, ringW = Math.max(3, hr * 0.09);
+    ctx.lineWidth = ringW; ctx.strokeStyle = P.hubInk;
+    ctx.globalAlpha = 0.22; ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (game.fired > 0){
+      ctx.beginPath(); ctx.arc(cx, cy, ringR, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * game.fired) / L.fire); ctx.stroke();
+    }
+    if (game.state === 'won' || (game.state === 'menu' && menuFrom === 'won')){
+      ctx.lineWidth = hr * 0.13; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(cx - hr * 0.3, cy + hr * 0.02); ctx.lineTo(cx - hr * 0.07, cy + hr * 0.25); ctx.lineTo(cx + hr * 0.32, cy - hr * 0.2); ctx.stroke();
+    } else {
+      ctx.fillStyle = P.hubInk; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = Math.round(hr * (game.queue >= 10 ? 0.62 : 0.72)) + 'px ' + DISPLAY;
+      ctx.fillText(String(game.queue), cx, cy + hr * 0.05);
+    }
+
+    // spokes in flight
+    for (const f of game.flying){
+      ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1.5, br * 0.2); ctx.globalAlpha = 0.3;
+      ctx.beginPath(); ctx.moveTo(cx, f.y + br * 1.1); ctx.lineTo(cx, f.y + br * 3.4); ctx.stroke();
+      ctx.globalAlpha = 1;
+      bead(cx, f.y, br, hit && hit.f === f ? P.danger : P.ink, f.label);
+    }
+
+    // launcher: the next few spokes, newest on top
+    if (game.queue > 0){
+      ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(1.5, br * 0.18); ctx.globalAlpha = 0.35;
+      const ay = launchY - br * 2.1;
+      ctx.beginPath(); ctx.moveTo(cx - br * 0.55, ay + br * 0.35); ctx.lineTo(cx, ay - br * 0.2); ctx.lineTo(cx + br * 0.55, ay + br * 0.35); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    const gap = br * 2.7;
+    for (let i = Math.min(game.queue, 4) - 1; i >= 0; i--){
+      ctx.globalAlpha = 1 - i * 0.22;
+      bead(cx, launchY + i * gap, br * (1 - i * 0.05), P.ink, game.queue - i);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- Cards & menus -------------------------------------------------------
+  function announce(msg){ srEl.textContent = msg; }
+  let toastTimer = 0;
+  function toast(text){
+    toastEl.textContent = text; toastEl.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
+  }
+
+  function showCard(kind){
+    const n = game.level, L = game.L;
+    card.dataset.kind = kind;
+    stepper.hidden = kind !== 'menu';
+    resetBtn.hidden = kind !== 'menu';
+    secondaryBtn.hidden = false;
+    saveNote.hidden = !(kind === 'title' || kind === 'menu');
+    disarmReset();
+    if (kind === 'title'){
+      cardEyebrow.textContent = 'Tap to fire · Don’t touch';
+      cardTitle.textContent = 'Spoke Shot';
+      cardBody.textContent = n > 1
+        ? 'Welcome back. You are on level ' + n + ', ' + worldOf(n).name + '. Fire every spoke into the hub without hitting another one.'
+        : 'Fire every spoke into the spinning hub without hitting another one. Clear a wheel to unlock the next. The levels never run out.';
+      primaryBtn.textContent = 'Play level ' + n;
+      secondaryBtn.textContent = 'Pick a level';
+      secondaryBtn.hidden = best <= 1;
+    } else if (kind === 'won'){
+      const nw = worldOf(n + 1);
+      cardEyebrow.textContent = 'Level ' + n + ' cleared';
+      cardTitle.textContent = 'Wheel trued';
+      cardBody.textContent = L.fire + ' spokes laced. Up next: level ' + (n + 1) + (nw.idx === 1 ? ', a new world: ' + nw.name + '.' : '.');
+      primaryBtn.textContent = 'Next level';
+      secondaryBtn.textContent = 'Levels';
+    } else if (kind === 'lost'){
+      cardEyebrow.textContent = 'Level ' + n;
+      cardTitle.textContent = 'Spokes crossed';
+      cardBody.textContent = game.fired + ' of ' + L.fire + ' laced before the hit. The wheel is the same every try, so you can learn it.';
+      primaryBtn.textContent = 'Try again';
+      secondaryBtn.textContent = 'Levels';
+    } else if (kind === 'menu'){
+      cardEyebrow.textContent = 'Furthest level: ' + best;
+      cardTitle.textContent = 'Levels';
+      cardBody.textContent = 'Replay any level you have reached. A level number always builds the same wheel.';
+      secondaryBtn.textContent = 'Close';
+      updatePick();
+    }
+    renderSaveNote();
+    card.hidden = false;
+    if (!reduced){ card.classList.remove('rise'); void card.offsetWidth; card.classList.add('rise'); }
+    try { primaryBtn.focus({ preventScroll: true }); } catch (e) {}
+  }
+  function hideCard(){ card.hidden = true; }
+
+  function updatePick(){
+    pick = clamp(pick, 1, best);
+    pickOut.textContent = String(pick);
+    pickWorld.textContent = worldOf(pick).name;
+    primaryBtn.textContent = 'Play level ' + pick;
+    stepper.querySelectorAll('[data-step]').forEach((b) => { b.disabled = Number(b.dataset.step) < 0 ? pick <= 1 : pick >= best; });
+  }
+
+  function startPlay(){
+    hideCard();
+    game.state = 'play';
+    toast(levelBlurb(game.L));
+  }
+  function openMenu(){
+    if (game.state === 'menu') return;
+    menuFrom = game.state;
+    pick = menuFrom === 'won' ? Math.min(best, game.level + 1) : game.level;
+    game.state = 'menu';
+    showCard('menu');
+  }
+  function closeMenu(){
+    if (game.state !== 'menu') return;
+    game.state = menuFrom;
+    if (menuFrom === 'play') hideCard(); else showCard(menuFrom);
+  }
+  function primary(){
+    const kind = card.dataset.kind;
+    if (kind === 'title') startPlay();
+    else if (kind === 'won'){ loadLevel(game.level + 1); save(); startPlay(); }
+    else if (kind === 'lost'){ loadLevel(game.level); startPlay(); }
+    else if (kind === 'menu'){ loadLevel(pick); save(); startPlay(); }
+  }
+
+  let resetArmed = 0;
+  function disarmReset(){ clearTimeout(resetArmed); resetArmed = 0; resetBtn.textContent = 'Reset progress'; resetBtn.classList.remove('armed'); }
+
+  primaryBtn.addEventListener('click', primary);
+  secondaryBtn.addEventListener('click', () => { if (card.dataset.kind === 'menu') closeMenu(); else openMenu(); });
+  menuBtn.addEventListener('click', (e) => { if (game.state === 'menu') closeMenu(); else openMenu(); if (e.detail) menuBtn.blur(); });
+  soundBtn.addEventListener('click', (e) => {
+    muted = !muted;
+    soundBtn.setAttribute('aria-pressed', String(muted));
+    if (!muted) unlockAudio();
+    save();
+    if (e.detail) soundBtn.blur();
+  });
+  stepper.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-step]'); if (!b) return;
+    pick += Number(b.dataset.step); updatePick();
+  });
+  resetBtn.addEventListener('click', () => {
+    if (!resetArmed){
+      resetArmed = setTimeout(disarmReset, 3500);
+      resetBtn.textContent = 'Tap again to erase progress';
+      resetBtn.classList.add('armed');
+      return;
+    }
+    disarmReset();
+    best = 1; pick = 1; menuFrom = 'title';
+    loadLevel(1); save();
+    cardEyebrow.textContent = 'Furthest level: 1';
+    updatePick();
+    announce('Progress erased. Back to level 1.');
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (e.button) return;
+    unlockAudio();
+    const t = e.target instanceof Element ? e.target : null;
+    if (t && t.closest('button, .stepper')) return;
+    if (game.state === 'play'){ e.preventDefault(); fire(); }
+    else if (game.state === 'title'){ if (!(t && t.closest('.card'))) startPlay(); }
+    else if ((game.state === 'won' || game.state === 'lost') && performance.now() >= game.readyAt) primary();
+  });
+  document.addEventListener('touchend', unlockAudio, { passive: true });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape'){ if (game.state === 'menu') closeMenu(); else openMenu(); return; }
+    if ((e.key === ' ' || e.key === 'ArrowUp') && game.state === 'play'){
+      e.preventDefault();
+      if (!e.repeat){ unlockAudio(); fire(); }
+    }
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && game.state === 'play') openMenu(); });
+
+  // ---- Boot ----------------------------------------------------------------
+  let last = 0;
+  function frame(now){
+    const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+    last = now;
+    update(dt);
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+  function start(){
+    saver.local = probeLocal();
+    const s = loadLocal();
+    saver.hadLocal = (s.best | 0) > 0;
+    best = Math.max(1, s.best | 0);
+    muted = !!s.muted;
+    soundBtn.setAttribute('aria-pressed', String(muted));
+    loadLevel(clamp((s.level | 0) || 1, 1, best));
+    game.state = 'title';
+    layout();
+    showCard('title');
+    if (window.ResizeObserver) new ResizeObserver(layout).observe(stage); else window.addEventListener('resize', layout);
+    requestAnimationFrame(frame);
+    connectCloud();
+  }
+  start();
+
+  // Offline support: once the game has loaded from a web address, sw.js keeps a copy on the device,
+  // and the browser is asked not to clear saved progress when space runs low.
+  // (Skipped inside claude.ai, and when index.html is opened straight from a folder.)
+  if (!window.claude && /^https?:$/.test(location.protocol)){
+    if ('serviceWorker' in navigator) window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
