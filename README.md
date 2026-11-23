@@ -7,7 +7,7 @@ Copyright © 2026 Bretton. All rights reserved.
 ## Play it
 
 - **On this Mac, offline:** double-click `index.html`. It opens in your browser and needs no internet.
-- **On a phone, offline:** the phone has to open the game once from a web address (https). After that, add it to the home screen and it works with no signal. See [Putting it on a phone](#putting-it-on-a-phone).
+- **On a phone, offline:** open <https://brettondodge.github.io/spoke-shot/> and add it to the home screen. After the first open it works with no signal. See [Putting it on a phone](#putting-it-on-a-phone).
 - **Test it like a website on this Mac:** in this folder run `python3 -m http.server 8000`, then open <http://localhost:8000>. The offline helper works on localhost too.
 
 ## How progress is saved
@@ -21,13 +21,14 @@ The title screen and the Levels screen say where progress is being saved, and wa
 
 ## Putting it on a phone
 
-A phone can only install the game from an https address. Ways to get one:
+The game is hosted free on GitHub Pages at **<https://brettondodge.github.io/spoke-shot/>**. Every push to `main` updates it within a minute or two.
 
-- **GitHub Pages:** free, but the repo must be public on a free GitHub plan.
-- **Netlify or Cloudflare Pages:** free, and they work with a private repo.
-- **A real app:** wrap the game with Capacitor for the App Store and Google Play. It works offline with no hosting at all.
+- **iPhone:** open the link in Safari, tap **Share → Add to Home Screen**, then open it from the home screen once while online.
+- **Android:** open the link in Chrome, tap **⋮ → Add to Home screen** (or **Install app**), then open it once while online.
 
-Once it's hosted: open the address on the phone, then **Share → Add to Home Screen** (iPhone, Safari) or **⋮ → Add to Home screen / Install app** (Android, Chrome). Open it once while online so it saves its files.
+After that first open it plays offline. Players get updates the next time they open it with a connection.
+
+For the App Store and Google Play later, wrap the game with Capacitor.
 
 ## Files
 
