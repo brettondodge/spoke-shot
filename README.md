@@ -21,6 +21,9 @@ For each difficulty, the game saves your furthest level and the level you're on.
 
 The title screen and the Levels screen say where progress is being saved, and warn you when the browser isn't keeping it.
 
+- **Save codes:** Levels → **Save code** shows a short code (like `E2R3-ATAE`) holding both difficulties' progress. Enter it on another phone or browser to pick up there. Restoring only ever moves progress forward, and a mistyped code is rejected.
+- **Home Screen tip:** in a phone's browser tab, the title screen suggests adding the game to the Home Screen, because Safari clears a site's data after about a week away. The tip never shows in the installed app, and tapping ✕ hides it for good.
+
 ## Putting it on a phone
 
 The game is hosted free on GitHub Pages at **<https://brettondodge.github.io/spoke-shot/>**. Every push to `main` updates it within a minute or two.

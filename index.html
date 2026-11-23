@@ -75,6 +75,7 @@ body{
   display:flex;flex-direction:column;gap:10px;padding:20px 20px 18px;border-radius:24px;
   background:var(--card);color:var(--ink);
   box-shadow:0 20px 44px -20px color-mix(in srgb,var(--ink) 60%,transparent),0 2px 0 color-mix(in srgb,var(--ink) 10%,transparent);
+  max-height:calc(100% - 32px);overflow-y:auto;overscroll-behavior:contain;
 }
 .card.rise{animation:rise .34s cubic-bezier(.2,.9,.3,1.15)}
 @keyframes rise{from{transform:translateY(18px);opacity:.55}to{transform:none;opacity:1}}
@@ -101,8 +102,24 @@ body{
 .pick{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}
 .pick output{font-family:var(--font-display);font-size:42px;line-height:1;font-variant-numeric:tabular-nums}
 .pick span{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
-.link-btn{align-self:flex-start;background:none;border:0;padding:6px 0;color:var(--muted);font:700 13px/1.2 var(--font-ui);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.card-links{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px}
+.link-btn{background:none;border:0;padding:6px 0;color:var(--muted);font:700 13px/1.2 var(--font-ui);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .link-btn.armed{color:var(--danger)}
+
+.install-tip{margin:0;display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--accent) 24%,var(--card));color:var(--ink);font-size:13.5px;line-height:1.4}
+.install-tip span{flex:1;min-width:0}
+.tip-close{flex:none;width:32px;height:32px;margin:-6px -8px -6px 0;border:0;border-radius:50%;background:transparent;color:var(--ink);display:grid;place-items:center;cursor:pointer}
+
+.code-box{display:flex;flex-direction:column;gap:8px}
+.code-row{display:flex;gap:8px;align-items:stretch}
+.code{flex:1;min-width:0;min-height:52px;display:flex;align-items:center;justify-content:center;padding:0 12px;border-radius:12px;background:color-mix(in srgb,var(--ink) 8%,transparent);font:700 22px/1.1 ui-monospace,"SF Mono",Menlo,Consolas,monospace;letter-spacing:.08em;text-align:center;overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
+.code-label{margin-top:6px;font-size:13px;font-weight:700;color:var(--muted)}
+.code-in{flex:1;min-width:0;min-height:48px;box-sizing:border-box;padding:0 12px;border-radius:12px;border:2px solid color-mix(in srgb,var(--ink) 24%,transparent);background:var(--card);color:var(--ink);font:700 17px/1 ui-monospace,"SF Mono",Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;-webkit-user-select:text;user-select:text}
+.code-in::placeholder{font:400 15px/1 var(--font-ui);letter-spacing:0;text-transform:none;color:var(--muted)}
+.code-in:focus-visible{outline:3px solid var(--ink);outline-offset:1px}
+.btn-small{flex:none;min-height:48px;padding:0 16px;border-radius:12px;border:0;background:var(--ink);color:var(--card);font:700 15px/1 var(--font-ui);cursor:pointer}
+.code-msg{margin:0;min-height:1.4em;font-size:13.5px;line-height:1.4;color:var(--muted)}
+.code-msg.warn{color:var(--danger);font-weight:700}
 
 button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;margin:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -141,6 +158,12 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     <p class="eyebrow" id="cardEyebrow">Tap to fire · Don’t touch</p>
     <h1 class="card-title" id="cardTitle">Spoke Shot</h1>
     <p class="card-body" id="cardBody">Fire every spoke into the spinning hub without hitting another one. Clear a wheel to unlock the next. The levels never run out.</p>
+    <p class="install-tip" id="installTip" hidden>
+      <span id="installText"></span>
+      <button type="button" class="tip-close" id="installClose" aria-label="Hide this tip">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </p>
     <p class="save-note" id="saveNote" hidden></p>
     <div class="diff" id="diffPick" role="radiogroup" aria-label="Difficulty" hidden>
       <button type="button" class="diff-opt" data-mode="normal" role="radio" aria-checked="true"><span class="diff-name">Normal</span><span class="diff-lvl" id="diffLvlNormal">Level 1</span></button>
@@ -153,11 +176,26 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       <button class="step" type="button" data-step="1" aria-label="Forward 1 level">+1</button>
       <button class="step" type="button" data-step="10" aria-label="Forward 10 levels">+10</button>
     </div>
+    <div class="code-box" id="codeBox" hidden>
+      <div class="code-row">
+        <output class="code" id="codeOut" aria-label="Your save code">----</output>
+        <button type="button" class="btn-small" id="codeCopy">Copy</button>
+      </div>
+      <label class="code-label" for="codeIn">Have a code from another phone or browser?</label>
+      <div class="code-row">
+        <input class="code-in" id="codeIn" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="Enter a save code">
+        <button type="button" class="btn-small" id="codeRestore">Restore</button>
+      </div>
+      <p class="code-msg" id="codeMsg" aria-live="polite"></p>
+    </div>
     <div class="card-actions">
       <button class="btn primary" id="primaryBtn" type="button">Play level 1</button>
       <button class="btn ghost" id="secondaryBtn" type="button" hidden>Pick a level</button>
     </div>
-    <button class="link-btn" id="resetBtn" type="button" hidden>Reset progress</button>
+    <div class="card-links" id="cardLinks" hidden>
+      <button class="link-btn" id="codeBtn" type="button">Save code</button>
+      <button class="link-btn" id="resetBtn" type="button">Reset progress</button>
+    </div>
   </section>
 
   <p class="sr" id="sr" aria-live="polite"></p>
@@ -173,6 +211,9 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   const primaryBtn = $('primaryBtn'), secondaryBtn = $('secondaryBtn'), resetBtn = $('resetBtn');
   const soundBtn = $('soundBtn'), menuBtn = $('menuBtn'), toastEl = $('toast'), srEl = $('sr'), saveNote = $('saveNote');
   const modeTag = $('modeTag'), diffPick = $('diffPick'), diffLvl = { normal: $('diffLvlNormal'), hard: $('diffLvlHard') };
+  const cardLinks = $('cardLinks'), codeBtn = $('codeBtn'), codeBox = $('codeBox'), codeOut = $('codeOut'), codeCopy = $('codeCopy');
+  const codeIn = $('codeIn'), codeRestore = $('codeRestore'), codeMsg = $('codeMsg');
+  const installTip = $('installTip'), installText = $('installText'), installClose = $('installClose');
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -665,7 +706,9 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     const n = game.level, L = game.L;
     card.dataset.kind = kind;
     stepper.hidden = kind !== 'menu';
-    resetBtn.hidden = kind !== 'menu';
+    cardLinks.hidden = kind !== 'menu';
+    codeBox.hidden = kind !== 'code';
+    installTip.hidden = !(kind === 'title' && tipWanted());
     secondaryBtn.hidden = false;
     saveNote.hidden = !(kind === 'title' || kind === 'menu');
     diffPick.hidden = saveNote.hidden;
@@ -698,6 +741,14 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       cardBody.textContent = 'Replay any level you have reached. A level number always builds the same wheel.';
       secondaryBtn.textContent = 'Close';
       updatePick();
+    } else if (kind === 'code'){
+      cardEyebrow.textContent = 'Save code';
+      cardTitle.textContent = 'Move your progress';
+      cardBody.textContent = 'Copy this code or write it down. Enter it in Spoke Shot on another phone or browser to pick up where you left off.';
+      codeOut.textContent = encodeSave(progress());
+      codeIn.value = ''; codeMsg.textContent = ''; codeMsg.classList.remove('warn');
+      primaryBtn.textContent = 'Done';
+      secondaryBtn.hidden = true;
     }
     renderSaveNote();
     renderDiff();
@@ -737,6 +788,80 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     save();
   }
 
+  // ---- Save codes ------------------------------------------------------------
+  // A save code carries both difficulties' progress to another phone or browser.
+  // Layout: 2 check characters, then the data, scrambled with a key made from the check value
+  // so codes don't look like counting. Data: a version number, then for Normal and Hard
+  // "furthest level - 1" and "furthest - current", each written 4 bits per character with the
+  // 5th bit meaning "more characters follow". A typo fails the check almost every time.
+  const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // no I, L, O or U, so it's hard to misread
+  const CODE_VERSION = 1;
+  function codeCheck(digits){
+    let h = 0x811C9DC5;
+    for (const d of digits){ h ^= d; h = Math.imul(h, 0x01000193) >>> 0; }
+    return (h ^ (h >>> 10) ^ (h >>> 20)) & 1023;
+  }
+  function codeKeys(check){ const r = mulberry32((Math.imul(check + 1, 2654435761) ^ 0x5A17C0DE) >>> 0); return () => Math.floor(r() * 32); }
+  function encodeSave(p){
+    const nums = [CODE_VERSION, p.normal.best - 1, p.normal.best - p.normal.level, p.hard.best - 1, p.hard.best - p.hard.level];
+    const digits = [];
+    for (let v of nums){
+      v = Math.max(0, Math.floor(v));
+      const chunk = [];
+      do { chunk.push(v % 16); v = Math.floor(v / 16); } while (v > 0);
+      for (let i = chunk.length - 1; i >= 0; i--) digits.push(chunk[i] | (i > 0 ? 16 : 0));
+    }
+    const check = codeCheck(digits), key = codeKeys(check);
+    const raw = B32[check >> 5] + B32[check & 31] + digits.map((d) => B32[d ^ key()]).join('');
+    return raw.match(/.{1,4}/g).join('-');
+  }
+  function decodeSave(text){
+    const s = String(text || '').toUpperCase().replace(/[\s\-_.]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+    if (s.length < 7 || s.length > 40) return null;
+    const vals = [];
+    for (const ch of s){ const v = B32.indexOf(ch); if (v < 0) return null; vals.push(v); }
+    const check = (vals[0] << 5) | vals[1], key = codeKeys(check);
+    const digits = vals.slice(2).map((v) => v ^ key());
+    if (codeCheck(digits) !== check) return null;
+    const nums = [];
+    let v = 0, open = false;
+    for (const d of digits){ v = v * 16 + (d & 15); open = (d & 16) !== 0; if (!open){ nums.push(v); v = 0; } }
+    if (open || nums.length !== 5 || nums[0] !== CODE_VERSION) return null;
+    const nb = nums[1] + 1, hb = nums[3] + 1;
+    if (nb > 1e6 || hb > 1e6) return null;
+    return { normal: { best: nb, level: clamp(nb - nums[2], 1, nb) }, hard: { best: hb, level: clamp(hb - nums[4], 1, hb) } };
+  }
+  // Takes a code's progress wherever it is further along; never moves anyone backward.
+  function restoreCode(text){
+    const d = decodeSave(text);
+    if (!d) return { ok: false, msg: 'That code doesn’t look right. Check each character and try again.' };
+    prog[mode] = { best, level: resumeLevel() };
+    const gained = [];
+    for (const m of MODES) if (d[m].best > prog[m].best){ prog[m] = d[m]; gained.push(DIFFS[m].label + ' level ' + d[m].level); }
+    if (!gained.length) return { ok: true, msg: 'This phone is already as far as that code, so nothing changed.' };
+    best = prog[mode].best;
+    loadLevel(clamp(prog[mode].level, 1, best));
+    menuFrom = 'title'; pick = game.level;
+    save();
+    return { ok: true, msg: 'Restored ' + gained.join(' and ') + '.' };
+  }
+
+  // ---- Home Screen tip -------------------------------------------------------
+  // In a phone's browser tab, progress is easier to lose (Safari clears a site's data after
+  // about a week away). The tip only shows there, never in the installed app or on claude.ai.
+  const TIP_KEY = 'spoke-shot.tip-hidden';
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/.test(ua);
+  const installed = navigator.standalone === true || !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  function tipWanted(){
+    if (window.claude || installed || !(isIOS || isAndroid) || !/^https?:$/.test(location.protocol)) return false;
+    try { return localStorage.getItem(TIP_KEY) !== '1'; } catch (e) { return true; }
+  }
+  installText.textContent = isIOS
+    ? 'Keep your progress safe: add Spoke Shot to your Home Screen. Tap Share, then Add to Home Screen.'
+    : 'Keep your progress safe: install Spoke Shot. Tap ⋮, then Add to Home screen.';
+
   function startPlay(){
     hideCard();
     game.state = 'play';
@@ -760,6 +885,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     else if (kind === 'won'){ loadLevel(game.level + 1); save(); startPlay(); }
     else if (kind === 'lost'){ loadLevel(game.level); startPlay(); }
     else if (kind === 'menu'){ loadLevel(pick); save(); startPlay(); }
+    else if (kind === 'code') showCard('menu');
   }
 
   let resetArmed = 0;
@@ -797,6 +923,30 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     const b = e.target.closest('[data-mode]');
     if (b) switchMode(b.dataset.mode);
   });
+  codeBtn.addEventListener('click', () => showCard('code'));
+  codeCopy.addEventListener('click', () => {
+    const text = codeOut.textContent;
+    const done = () => { codeCopy.textContent = 'Copied'; setTimeout(() => { codeCopy.textContent = 'Copy'; }, 1600); };
+    const fallback = () => {
+      try { const range = document.createRange(); range.selectNodeContents(codeOut); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); } catch (e) {}
+      codeMsg.classList.remove('warn');
+      codeMsg.textContent = 'Couldn’t copy automatically. Press and hold the code to copy it, or write it down.';
+    };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  });
+  function doRestore(){
+    const res = restoreCode(codeIn.value);
+    codeMsg.textContent = res.msg;
+    codeMsg.classList.toggle('warn', !res.ok);
+    if (res.ok){ codeOut.textContent = encodeSave(progress()); codeIn.value = ''; codeIn.blur(); }
+  }
+  codeRestore.addEventListener('click', doRestore);
+  codeIn.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); doRestore(); } });
+  codeIn.addEventListener('blur', () => { setTimeout(() => window.scrollTo(0, 0), 60); }); // iPhones can leave the page shifted after the keyboard closes
+  installClose.addEventListener('click', () => {
+    installTip.hidden = true;
+    try { localStorage.setItem(TIP_KEY, '1'); } catch (e) {}
+  });
 
   document.addEventListener('pointerdown', (e) => {
     if (e.button) return;
@@ -813,15 +963,23 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   // iPhone home-screen apps ignore the CSS that turns off double-tap zoom, and while zoom is
   // possible iOS holds back quick taps to check for it. Cancelling the touch itself stops both.
   // Buttons are left alone so they still click.
+  // The save code (to select it), the code box (to type) and a card too tall for the screen
+  // (to scroll it) are left alone too.
   document.addEventListener('touchstart', (e) => {
     const t = e.target instanceof Element ? e.target : null;
-    if (t && t.closest('button')) return;
+    if (t && t.closest('button, input, label, .code')) return;
+    if (t && t.closest('.card') && card.scrollHeight > card.clientHeight + 1) return;
     e.preventDefault();
   }, { passive: false });
   document.addEventListener('gesturestart', (e) => e.preventDefault());
   document.addEventListener('dblclick', (e) => e.preventDefault());
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape'){ if (game.state === 'menu') closeMenu(); else openMenu(); return; }
+    if (e.key === 'Escape'){
+      if (card.dataset.kind === 'code' && !card.hidden) showCard('menu');
+      else if (game.state === 'menu') closeMenu();
+      else openMenu();
+      return;
+    }
     if ((e.key === ' ' || e.key === 'ArrowUp') && game.state === 'play'){
       e.preventDefault();
       if (!e.repeat){ unlockAudio(); fire(); }
