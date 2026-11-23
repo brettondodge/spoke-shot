@@ -58,7 +58,9 @@ body{
 .hud{position:absolute;top:0;left:0;right:0;height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none}
 .hud>*{pointer-events:auto}
 .lvl{display:flex;flex-direction:column;gap:4px;min-width:0}
+.lvl-top{display:flex;align-items:center;gap:8px}
 .lvl-num{font-family:var(--font-display);font-size:26px;line-height:1;letter-spacing:.01em}
+.mode-tag{font-size:11px;font-weight:700;line-height:1;letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;border-radius:999px;background:var(--hub);color:var(--hub-ink)}
 .lvl-world{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hud-btns{display:flex;gap:8px;flex:none}
 .icon-btn{width:44px;height:44px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;color:var(--ink);background:var(--card);background:color-mix(in srgb,var(--card) 70%,transparent);cursor:pointer}
@@ -88,6 +90,11 @@ body{
 .btn.primary:active{transform:translateY(2px);box-shadow:0 1px 0 color-mix(in srgb,var(--hub) 62%,#000)}
 .btn.ghost{background:transparent;color:var(--ink);border:2px solid color-mix(in srgb,var(--ink) 24%,transparent)}
 
+.diff{display:flex;gap:4px;padding:4px;border-radius:16px;background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.diff-opt{flex:1;min-height:48px;padding:6px 10px;border:0;border-radius:12px;background:transparent;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.diff-opt[aria-checked="true"]{background:var(--ink);color:var(--card)}
+.diff-name{font:700 15px/1.1 var(--font-ui)}
+.diff-lvl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75}
 .stepper{display:flex;align-items:center;gap:6px;margin-top:2px}
 .step{flex:none;width:48px;height:48px;border-radius:14px;border:0;background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink);font:700 16px/1 var(--font-ui);cursor:pointer}
 .step:disabled{opacity:.35;cursor:default}
@@ -108,7 +115,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 
   <header class="hud">
     <div class="lvl">
-      <span class="lvl-num" id="lvlNum">Level 1</span>
+      <span class="lvl-top"><span class="lvl-num" id="lvlNum">Level 1</span><span class="mode-tag" id="modeTag" hidden>Hard</span></span>
       <span class="lvl-world" id="lvlWorld">Daybreak · 1 of 10</span>
     </div>
     <div class="hud-btns">
@@ -135,6 +142,10 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     <h1 class="card-title" id="cardTitle">Spoke Shot</h1>
     <p class="card-body" id="cardBody">Fire every spoke into the spinning hub without hitting another one. Clear a wheel to unlock the next. The levels never run out.</p>
     <p class="save-note" id="saveNote" hidden></p>
+    <div class="diff" id="diffPick" role="radiogroup" aria-label="Difficulty" hidden>
+      <button type="button" class="diff-opt" data-mode="normal" role="radio" aria-checked="true"><span class="diff-name">Normal</span><span class="diff-lvl" id="diffLvlNormal">Level 1</span></button>
+      <button type="button" class="diff-opt" data-mode="hard" role="radio" aria-checked="false"><span class="diff-name">Hard</span><span class="diff-lvl" id="diffLvlHard">Level 1</span></button>
+    </div>
     <div class="stepper" id="stepper" hidden>
       <button class="step" type="button" data-step="-10" aria-label="Back 10 levels">−10</button>
       <button class="step" type="button" data-step="-1" aria-label="Back 1 level">−1</button>
@@ -161,14 +172,13 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   const stepper = $('stepper'), pickOut = $('pickOut'), pickWorld = $('pickWorld');
   const primaryBtn = $('primaryBtn'), secondaryBtn = $('secondaryBtn'), resetBtn = $('resetBtn');
   const soundBtn = $('soundBtn'), menuBtn = $('menuBtn'), toastEl = $('toast'), srEl = $('sr'), saveNote = $('saveNote');
+  const modeTag = $('modeTag'), diffPick = $('diffPick'), diffLvl = { normal: $('diffLvlNormal'), hard: $('diffLvlHard') };
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   // ---- Tuning -------------------------------------------------------------
   const STORE = 'spoke-shot.v1';
   const BEAD = 0.0735;   // bead radius as a share of the orbit radius (about 42 beads fit edge to edge)
-  const MAX_TOTAL = 22;  // most spokes one hub ever carries, preset + fired
-  const HIT = 0.88;      // beads may overlap a little before it counts as a hit
   const DISPLAY = '"Bagel Fat One","Arial Rounded MT Bold",sans-serif';
   const UI = '"Atkinson Hyperlegible",system-ui,sans-serif';
 
@@ -181,7 +191,6 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     { name:'Aurora',   bg:'#0C2529', bg2:'#18454C', ink:'#E6F6F1', muted:'#9DC3BC', hub:'#FF8FB1', hubInk:'#0C2529', accent:'#7DE2C3', card:'#133338', beadInk:'#0C2529', danger:'#FF6B6B', dark:true },
   ];
   const MODE_TEXT = { steady:'Steady spin', reverse:'Reverses', pulse:'Surges', swing:'Rocks back', stopgo:'Stop and go', flip:'Flips on every hit' };
-  const MODE_UNLOCK = { reverse:6, pulse:12, swing:18, flip:24, stopgo:32 };
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   function roman(k){ return ['', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][k] || String(k + 1); }
@@ -191,6 +200,30 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   }
 
   // ---- Levels: built from the level number, so level 37 is always the same wheel ----
+  // Each difficulty is a recipe. Hard is the original game, unchanged; Normal climbs gently.
+  //   maxTotal  most spokes one hub ever carries, preset + fired
+  //   hit       beads may overlap this much before it counts (lower = more forgiving)
+  //   unlock    level where each spin pattern first appears
+  const DIFFS = {
+    normal: {
+      label: 'Normal', seed: 0x2545F491, maxTotal: 16, hit: 0.78,
+      unlock: { reverse: 8, pulse: 16, swing: 25, flip: 40, stopgo: 55 },
+      fire:  (n, boss) => Math.min(4 + Math.floor(n * 0.25) + (boss ? 2 : 0), boss ? 14 : 12),
+      pre:   (n, coin) => Math.min(Math.floor(n * 0.18) + coin, 6),
+      speed: (n, j) => Math.min(1.85, 0.8 + 1.05 * (1 - Math.exp(-n / 35)) + j * 0.12),
+      flipChance: (n) => (n >= 60 ? 0.25 : 0.15),
+    },
+    hard: {
+      label: 'Hard', seed: 0x9E3779B9, maxTotal: 22, hit: 0.88,
+      unlock: { reverse: 6, pulse: 12, swing: 18, flip: 24, stopgo: 32 },
+      fire:  (n, boss) => Math.min(5 + Math.floor(n * 0.4) + (boss ? 3 : 0), boss ? 19 : 16),
+      pre:   (n, coin) => Math.min(1 + Math.floor(n * 0.28) + coin, 10),
+      speed: (n, j) => Math.min(2.45, 0.95 + 1.45 * (1 - Math.exp(-n / 28)) + j * 0.16),
+      flipChance: (n) => (n >= 40 ? 0.35 : 0.2),
+    },
+  };
+  const MODES = ['normal', 'hard'];
+
   function mulberry32(a){
     return function(){
       a = (a + 0x6D2B79F5) | 0;
@@ -199,24 +232,26 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  function makeLevel(n){
-    const r = mulberry32((Math.imul(n, 2654435761) ^ 0x9E3779B9) >>> 0);
+  function makeLevel(n, difficulty){
+    const D = DIFFS[difficulty] || DIFFS.normal, U = D.unlock;
+    // The order of r() calls below is part of each level's identity: keep it as is.
+    const r = mulberry32((Math.imul(n, 2654435761) ^ D.seed) >>> 0);
     r(); r();
     const boss = n % 10 === 0;
-    const fire = Math.min(5 + Math.floor(n * 0.4) + (boss ? 3 : 0), boss ? 19 : 16);
-    let pre = Math.min(1 + Math.floor(n * 0.28) + (r() < 0.5 ? 1 : 0), 10);
+    const fire = D.fire(n, boss);
+    let pre = D.pre(n, r() < 0.5 ? 1 : 0);
     if (n === 1) pre = 1;
-    pre = clamp(pre, 0, MAX_TOTAL - fire);
-    const speed = Math.min(2.45, 0.95 + 1.45 * (1 - Math.exp(-n / 28)) + (r() - 0.5) * 0.16);
+    pre = clamp(pre, 0, D.maxTotal - fire);
+    const speed = D.speed(n, r() - 0.5);
 
     let newMode = null;
-    for (const m in MODE_UNLOCK) if (MODE_UNLOCK[m] === n) newMode = m;
+    for (const m in U) if (U[m] === n) newMode = m;
     const pool = ['steady'];
-    for (const m of ['reverse', 'pulse', 'swing', 'stopgo']) if (n >= MODE_UNLOCK[m]) pool.push(m);
-    let mode = 'steady';
-    if (newMode && newMode !== 'flip') mode = newMode;
-    else if (n >= 6 && newMode !== 'flip') mode = r() < 0.3 ? pool[pool.length - 1] : pool[Math.floor(r() * pool.length)];
-    const flip = newMode === 'flip' || (n > MODE_UNLOCK.flip && r() < (n >= 40 ? 0.35 : 0.2));
+    for (const m of ['reverse', 'pulse', 'swing', 'stopgo']) if (n >= U[m]) pool.push(m);
+    let spin = 'steady';
+    if (newMode && newMode !== 'flip') spin = newMode;
+    else if (n >= U.reverse && newMode !== 'flip') spin = r() < 0.3 ? pool[pool.length - 1] : pool[Math.floor(r() * pool.length)];
+    const flip = newMode === 'flip' || (n > U.flip && r() < D.flipChance(n));
 
     const dir = r() < 0.5 ? 1 : -1;
     const period = 2.4 + r() * 2.2;
@@ -228,7 +263,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       const off = r() * Math.PI * 2;
       for (let i = 0; i < pre; i++) angles.push(off + i * spacing + (r() * 2 - 1) * slack);
     }
-    return { n, boss, fire, pre, speed, mode, flip, dir, period, angles, newMode };
+    return { n, boss, fire, pre, speed, mode: spin, flip, dir, period, angles, newMode, hit: D.hit };
   }
   function levelBlurb(L){
     const parts = [];
@@ -246,6 +281,9 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     flipSign: 1, shake: 0, bump: 0, hit: null, winT: 0, readyAt: 0,
   };
   let best = 1, muted = false, menuFrom = 'title', pick = 1, P = WORLDS[0];
+  // `best` and game.level are the live values for the current difficulty; prog keeps both difficulties.
+  let mode = 'normal';
+  const prog = { normal: { best: 1, level: 1 }, hard: { best: 1, level: 1 } };
 
   // ---- Saving ----------------------------------------------------------------
   // Progress is three small facts: furthest level, current level, sound on/off.
@@ -260,8 +298,28 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     if (!saver.local) return {};
     try { const s = JSON.parse(localStorage.getItem(STORE) || '{}'); return s && typeof s === 'object' ? s : {}; } catch (e) { return {}; }
   }
-  function resumeLevel(){ return game.state === 'won' ? Math.min(best, game.level + 1) : game.level; }
-  function progress(){ return { best, level: resumeLevel(), muted }; }
+  function resumeLevel(){
+    const won = game.state === 'won' || (game.state === 'menu' && menuFrom === 'won');
+    return won ? Math.min(best, game.level + 1) : game.level;
+  }
+  // Saved shape (v2): { v, mode, muted, normal: {best, level}, hard: {best, level}, best, level }.
+  // The top-level best/level repeat Hard, so a copy of the game from before difficulty modes
+  // still reads its progress correctly.
+  function pack(m, mute, normal, hard){
+    return { v: 2, mode: m, muted: mute, normal: { best: normal.best, level: normal.level }, hard: { best: hard.best, level: hard.level }, best: hard.best, level: hard.level };
+  }
+  function progress(){
+    const cur = { best, level: resumeLevel() };
+    return pack(mode, muted, mode === 'normal' ? cur : prog.normal, mode === 'hard' ? cur : prog.hard);
+  }
+  // Reads a saved record in either shape; null when there is nothing saved.
+  function readProgress(s){
+    if (!s || typeof s !== 'object') return null;
+    const fix = (x) => { const b = Math.max(1, Number(x && x.best) | 0); return { best: b, level: clamp((Number(x && x.level) | 0) || 1, 1, b) }; };
+    if (s.v === 2) return pack(s.mode === 'hard' ? 'hard' : 'normal', !!s.muted, fix(s.normal), fix(s.hard));
+    if ((Number(s.best) | 0) > 0) return pack('hard', !!s.muted, { best: 1, level: 1 }, fix(s)); // saved before modes existed: that game is Hard
+    return null;
+  }
   function save(){
     if (saver.local){ try { localStorage.setItem(STORE, JSON.stringify(progress())); } catch (e) { saver.local = false; renderSaveNote(); } }
     saveCloud();
@@ -299,16 +357,17 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       snap = await Promise.race([ref.get(), new Promise((_, reject) => setTimeout(() => reject({ code: 'timeout' }), 10000))]);
       saver.cloud = ref;
     } catch (e) { saver.cloudState = 'none'; renderSaveNote(); return; }
-    const d = snap.exists ? snap.data() : null;
+    const d = readProgress(snap.exists ? snap.data() : null);
     if (d){
-      const cloudBest = Math.max(1, Number(d.best) | 0);
-      saver.lastCloud = JSON.stringify({ best: cloudBest, level: Number(d.level) | 0, muted: !!d.muted });
-      const ahead = cloudBest > best;
-      best = Math.max(best, cloudBest);
-      if (!saver.hadLocal && typeof d.muted === 'boolean'){ muted = d.muted; soundBtn.setAttribute('aria-pressed', String(muted)); }
-      if (game.state === 'title' && (ahead || !saver.hadLocal)){ loadLevel(clamp((Number(d.level) | 0) || best, 1, best)); showCard('title'); }
-      else if (game.state === 'title'){ secondaryBtn.hidden = best <= 1; }
-      else if (game.state === 'menu'){ cardEyebrow.textContent = 'Furthest level: ' + best; updatePick(); }
+      saver.lastCloud = JSON.stringify(d);
+      // Keep whichever copy got further, per difficulty.
+      prog[mode] = { best, level: resumeLevel() };
+      for (const m of MODES) if (d[m].best > prog[m].best) prog[m] = { best: d[m].best, level: d[m].level };
+      const onTitle = game.state === 'title';
+      if (!saver.hadLocal && onTitle){ mode = d.mode; muted = d.muted; soundBtn.setAttribute('aria-pressed', String(muted)); }
+      best = prog[mode].best;
+      if (onTitle){ loadLevel(clamp(prog[mode].level, 1, best)); showCard('title'); }
+      else if (game.state === 'menu'){ cardEyebrow.textContent = menuEyebrow(); updatePick(); renderDiff(); }
     }
     saver.cloudState = 'on';
     renderSaveNote();
@@ -337,7 +396,8 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   }
 
   function loadLevel(n){
-    game.level = n; game.L = makeLevel(n);
+    game.level = n; game.L = makeLevel(n, mode);
+    modeTag.hidden = mode !== 'hard';
     game.stuck = game.L.angles.map((a) => ({ a, label: 0, born: 0 }));
     game.queue = game.L.fire; game.flying = []; game.fired = 0;
     game.angle = 0; game.t = 0; game.flipSign = 1; game.shake = 0; game.bump = 0; game.hit = null; game.winT = 0;
@@ -429,7 +489,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     }
     if (st !== 'play') return;
 
-    const { cx, cy, O, br, V } = geo, stopY = cy + O, reach = 2 * br * HIT;
+    const { cx, cy, O, br, V } = geo, stopY = cy + O, reach = 2 * br * game.L.hit;
     for (let i = 0; i < game.flying.length; i++){
       const f = game.flying[i];
       f.y -= V * dt;
@@ -608,6 +668,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     resetBtn.hidden = kind !== 'menu';
     secondaryBtn.hidden = false;
     saveNote.hidden = !(kind === 'title' || kind === 'menu');
+    diffPick.hidden = saveNote.hidden;
     disarmReset();
     if (kind === 'title'){
       cardEyebrow.textContent = 'Tap to fire · Don’t touch';
@@ -632,13 +693,14 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       primaryBtn.textContent = 'Try again';
       secondaryBtn.textContent = 'Levels';
     } else if (kind === 'menu'){
-      cardEyebrow.textContent = 'Furthest level: ' + best;
+      cardEyebrow.textContent = menuEyebrow();
       cardTitle.textContent = 'Levels';
       cardBody.textContent = 'Replay any level you have reached. A level number always builds the same wheel.';
       secondaryBtn.textContent = 'Close';
       updatePick();
     }
     renderSaveNote();
+    renderDiff();
     card.hidden = false;
     if (!reduced){ card.classList.remove('rise'); void card.offsetWidth; card.classList.add('rise'); }
     try { primaryBtn.focus({ preventScroll: true }); } catch (e) {}
@@ -651,6 +713,28 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     pickWorld.textContent = worldOf(pick).name;
     primaryBtn.textContent = 'Play level ' + pick;
     stepper.querySelectorAll('[data-step]').forEach((b) => { b.disabled = Number(b.dataset.step) < 0 ? pick <= 1 : pick >= best; });
+  }
+
+  // ---- Difficulty ------------------------------------------------------------
+  function menuEyebrow(){ return DIFFS[mode].label + ' · furthest level ' + best; }
+  function renderDiff(){
+    if (diffPick.hidden) return;
+    for (const m of MODES){
+      const lvl = m === mode ? resumeLevel() : prog[m].level;
+      diffLvl[m].textContent = 'Level ' + lvl;
+      diffLvl[m].parentElement.setAttribute('aria-checked', String(m === mode));
+    }
+  }
+  function switchMode(m){
+    if (m === mode || !DIFFS[m]) return;
+    prog[mode] = { best, level: resumeLevel() };
+    mode = m;
+    best = prog[m].best;
+    loadLevel(clamp(prog[m].level, 1, best));
+    if (game.state === 'menu'){ menuFrom = 'title'; pick = game.level; showCard('menu'); }
+    else { game.state = 'title'; showCard('title'); }
+    announce(DIFFS[m].label + ' difficulty, level ' + game.level + '.');
+    save();
   }
 
   function startPlay(){
@@ -679,7 +763,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   }
 
   let resetArmed = 0;
-  function disarmReset(){ clearTimeout(resetArmed); resetArmed = 0; resetBtn.textContent = 'Reset progress'; resetBtn.classList.remove('armed'); }
+  function disarmReset(){ clearTimeout(resetArmed); resetArmed = 0; resetBtn.textContent = 'Reset ' + DIFFS[mode].label + ' progress'; resetBtn.classList.remove('armed'); }
 
   primaryBtn.addEventListener('click', primary);
   secondaryBtn.addEventListener('click', () => { if (card.dataset.kind === 'menu') closeMenu(); else openMenu(); });
@@ -698,16 +782,20 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   resetBtn.addEventListener('click', () => {
     if (!resetArmed){
       resetArmed = setTimeout(disarmReset, 3500);
-      resetBtn.textContent = 'Tap again to erase progress';
+      resetBtn.textContent = 'Tap again to erase ' + DIFFS[mode].label + ' progress';
       resetBtn.classList.add('armed');
       return;
     }
     disarmReset();
-    best = 1; pick = 1; menuFrom = 'title';
+    best = 1; pick = 1; menuFrom = 'title'; prog[mode] = { best: 1, level: 1 };
     loadLevel(1); save();
-    cardEyebrow.textContent = 'Furthest level: 1';
-    updatePick();
-    announce('Progress erased. Back to level 1.');
+    cardEyebrow.textContent = menuEyebrow();
+    updatePick(); renderDiff();
+    announce(DIFFS[mode].label + ' progress erased. Back to level 1.');
+  });
+  diffPick.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mode]');
+    if (b) switchMode(b.dataset.mode);
   });
 
   document.addEventListener('pointerdown', (e) => {
@@ -752,12 +840,12 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   }
   function start(){
     saver.local = probeLocal();
-    const s = loadLocal();
-    saver.hadLocal = (s.best | 0) > 0;
-    best = Math.max(1, s.best | 0);
-    muted = !!s.muted;
+    const s = readProgress(loadLocal());
+    saver.hadLocal = !!s;
+    if (s){ mode = s.mode; muted = s.muted; prog.normal = s.normal; prog.hard = s.hard; } // new players start on Normal
     soundBtn.setAttribute('aria-pressed', String(muted));
-    loadLevel(clamp((s.level | 0) || 1, 1, best));
+    best = prog[mode].best;
+    loadLevel(clamp(prog[mode].level, 1, best));
     game.state = 'title';
     layout();
     showCard('title');

@@ -1,9 +1,10 @@
 // Spoke Shot offline helper (service worker).
 // The first visit saves every game file on the device. After that the game opens from the saved
 // copy, even with no internet, and quietly fetches any newer files for the next launch.
-// If you add or rename files, add them to FILES and bump the CACHE number.
+// Bump the CACHE number with every release: that is what tells installed copies to switch over
+// on their next launch. If you add or rename files, add them to FILES too.
 
-const CACHE = 'spoke-shot-v2';
+const CACHE = 'spoke-shot-v3';
 const FILES = [
   './',
   './index.html',

@@ -2,6 +2,8 @@
 
 Tap to fire spokes into a spinning hub without hitting another one. Each level is built from its level number, so the levels never run out, and level 37 is the same wheel every time.
 
+There are two difficulties, each with its own progress. **Normal** is the default and climbs gently. **Hard** is the original game and takes real skill.
+
 Copyright © 2026 Bretton. All rights reserved.
 
 ## Play it
@@ -12,7 +14,7 @@ Copyright © 2026 Bretton. All rights reserved.
 
 ## How progress is saved
 
-The game saves three things: your furthest level, the level you're on, and whether sound is on.
+For each difficulty, the game saves your furthest level and the level you're on. It also saves which difficulty you last played and whether sound is on. Saves from before difficulties existed count as Hard progress.
 
 - **From a web address or this folder:** saved in that browser on that device. Each device keeps its own. Clearing browser data or using private browsing erases it.
 - **On claude.ai:** also saved to your Claude account, so it follows you between devices there.
@@ -35,7 +37,7 @@ For the App Store and Google Play later, wrap the game with Capacitor.
 | Path | What it is |
 | --- | --- |
 | `index.html` | The whole game |
-| `sw.js` | Offline helper (service worker). If you add or rename files, list them in `FILES` and bump `CACHE`. |
+| `sw.js` | Offline helper (service worker). Bump `CACHE` with every release so installed copies switch over on their next launch. List any new files in `FILES`. |
 | `manifest.webmanifest` | Home-screen name, icon and colors |
 | `fonts/` | Bagel Fat One and Atkinson Hyperlegible, with their licenses |
 | `icons/` | App icons. Redraw them with `swift tools/make-icons.swift icons` |
@@ -45,9 +47,13 @@ For the App Store and Google Play later, wrap the game with Capacitor.
 
 All in `index.html`:
 
-- `makeLevel(n)` decides each level: spokes to fire, spokes already on the hub, spin speed and spin pattern.
-- `MODE_UNLOCK` sets the level where each spin pattern first appears.
-- `MAX_TOTAL` caps how many spokes one hub can carry. `HIT` sets how forgiving a near miss is.
+- `DIFFS` holds one recipe per difficulty:
+  - `fire`, `pre` and `speed` set the spokes to fire, the spokes already on the hub, and the spin speed for level `n`.
+  - `unlock` sets the level where each spin pattern first appears.
+  - `maxTotal` caps how many spokes one hub can carry.
+  - `hit` sets how forgiving a near miss is. Lower is more forgiving.
+- Changing Hard's recipe changes levels that players have already reached, so tune Normal first.
+- `makeLevel(n, difficulty)` turns a recipe into a wheel. Keep the order of its `r()` calls, or every level changes.
 - `WORLDS` holds the color palette for each 10-level world.
 
 ## Credits
