@@ -3,7 +3,7 @@
 // copy, even with no internet, and quietly fetches any newer files for the next launch.
 // If you add or rename files, add them to FILES and bump the CACHE number.
 
-const CACHE = 'spoke-shot-v1';
+const CACHE = 'spoke-shot-v2';
 const FILES = [
   './',
   './index.html',
@@ -19,7 +19,12 @@ const FILES = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's own short-term cache, so a new version saves fresh files.
+  event.waitUntil(
+    caches.open(CACHE)
+      .then((cache) => cache.addAll(FILES.map((url) => new Request(url, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {

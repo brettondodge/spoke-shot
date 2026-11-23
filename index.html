@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Spoke Shot</title>
 <meta name="description" content="Tap to fire spokes into a spinning hub without hitting another one. The levels never run out.">
 <meta name="theme-color" content="#F1F8FC">
@@ -40,7 +40,8 @@
   padding-bottom:env(safe-area-inset-bottom,0px);
 }
 [hidden]{display:none!important}
-html{height:100%;box-sizing:border-box;overflow:hidden;touch-action:manipulation}
+html{height:100%;box-sizing:border-box;overflow:hidden;touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button{touch-action:manipulation}
 body{
   height:100%;margin:0;overflow:hidden;box-sizing:border-box;
   padding-left:max(16px,env(safe-area-inset-left,0px));
@@ -51,7 +52,8 @@ body{
   -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;overscroll-behavior:none;
 }
 #stage{position:relative;height:100%}
-#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+/* The canvas covers the whole screen and paints its own background; the game is laid out inside #stage. */
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 
 .hud{position:absolute;top:0;left:0;right:0;height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none}
 .hud>*{pointer-events:auto}
@@ -154,7 +156,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const stage = $('stage'), cv = $('cv'), ctx = cv.getContext('2d');
+  const stage = $('stage'), cv = $('cv'), ctx = cv.getContext('2d', { alpha: false }); // opaque canvas: cheaper for the phone to show
   const card = $('card'), cardEyebrow = $('cardEyebrow'), cardTitle = $('cardTitle'), cardBody = $('cardBody');
   const stepper = $('stepper'), pickOut = $('pickOut'), pickWorld = $('pickWorld');
   const primaryBtn = $('primaryBtn'), secondaryBtn = $('secondaryBtn'), resetBtn = $('resetBtn');
@@ -331,6 +333,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     s.setProperty('--accent', p.accent); s.setProperty('--card', p.card); s.setProperty('--danger', p.danger);
     s.colorScheme = p.dark ? 'dark' : 'light';
     if (themeMeta) themeMeta.setAttribute('content', p.bg2);
+    bgGrad = null; sprites.clear();
   }
 
   function loadLevel(n){
@@ -357,19 +360,24 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   }
 
   // ---- Layout --------------------------------------------------------------
-  const geo = { W: 1, H: 1, dpr: 1, cx: 0, cy: 0, R: 0, O: 0, br: 0, launchY: 0, V: 0 };
+  const geo = { VW: 1, VH: 1, offX: 0, offY: 0, W: 1, H: 1, dpr: 1, cx: 0, cy: 0, R: 0, O: 0, br: 0, launchY: 0, V: 0 };
   function layout(){
-    const rect = stage.getBoundingClientRect();
-    const W = Math.max(1, rect.width), H = Math.max(1, rect.height);
+    // VW/VH: the whole screen (the canvas). W/H: the play area (#stage), offset by offX/offY.
+    const cr = cv.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+    const VW = Math.max(1, cr.width), VH = Math.max(1, cr.height);
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const bw = Math.round(VW * dpr), bh = Math.round(VH * dpr);
+    if (cv.width !== bw || cv.height !== bh){ cv.width = bw; cv.height = bh; } // resizing wipes the canvas, so only when needed
+    const W = Math.max(1, sr.width), H = Math.max(1, sr.height);
     const top = 64, avail = Math.max(120, H - top);
     const O = Math.max(40, Math.min(W * 0.42, avail * 0.25));
     const br = O * BEAD;
     const cy = top + O + br + Math.max(12, avail * 0.04);
     const launchY = Math.max(H - (br * 2.7 * 3 + br + 22), cy + O + br * 5);
-    Object.assign(geo, { W, H, dpr, cx: W / 2, cy, R: O * 0.42, O, br, launchY, V: O * 9 });
+    Object.assign(geo, { VW, VH, offX: sr.left - cr.left, offY: sr.top - cr.top, W, H, dpr, cx: W / 2, cy, R: O * 0.42, O, br, launchY, V: O * 9 });
     toastEl.style.top = Math.round((cy + O + br + launchY - br * 2) / 2 - 9) + 'px';
+    bgGrad = null; sprites.clear(); lastFont = '';
+    if (game.L) draw(performance.now()); // repaint now: a resized canvas starts out blank
   }
 
   // ---- Sound ---------------------------------------------------------------
@@ -468,24 +476,59 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   }
 
   // ---- Drawing -------------------------------------------------------------
+  // Text is the slowest thing a canvas draws, so each numbered bead is drawn once into a small
+  // picture (a "sprite") and then just stamped onto the screen every frame.
+  const sprites = new Map();
+  let bgGrad = null, lastFont = '';
+  function setFont(f){ if (f !== lastFont){ ctx.font = f; lastFont = f; } }
   function disc(x, y, r, fill){ ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+  function beadSprite(label, fill){
+    const key = label + fill;
+    let s = sprites.get(key);
+    if (s) return s;
+    const r = geo.br, half = r + 1.5, size = Math.max(2, Math.ceil(half * 2 * geo.dpr));
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+    g.scale(size / (half * 2), size / (half * 2));
+    g.fillStyle = fill; g.beginPath(); g.arc(half, half, r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = P.beadInk;
+    g.font = '700 ' + Math.round(r * (label >= 10 ? 0.95 : 1.12)) + 'px ' + UI;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(label), half, half + r * 0.07);
+    s = { c, half };
+    sprites.set(key, s);
+    return s;
+  }
   function bead(x, y, r, fill, label){
-    disc(x, y, r, fill);
-    if (!label) return;
-    ctx.fillStyle = P.beadInk;
-    ctx.font = '700 ' + Math.round(r * (label >= 10 ? 0.95 : 1.12)) + 'px ' + UI;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(label), x, y + r * 0.07);
+    if (!label){ disc(x, y, r, fill); return; }
+    const s = beadSprite(label, fill), h = s.half * (r / geo.br);
+    ctx.drawImage(s.c, x - h, y - h, h * 2, h * 2);
+  }
+  function paintBackground(){
+    if (!bgGrad){
+      bgGrad = ctx.createLinearGradient(0, 0, 0, geo.VH);
+      bgGrad.addColorStop(0, P.bg2); bgGrad.addColorStop(0.78, P.bg); bgGrad.addColorStop(1, P.bg);
+    }
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, geo.VW, geo.VH);
+  }
+  // Sprites drawn before the fonts arrive would keep the fallback font, so redraw them once loaded.
+  if (document.fonts && document.fonts.load){
+    Promise.all([document.fonts.load('700 16px "Atkinson Hyperlegible"'), document.fonts.load('16px "Bagel Fat One"')])
+      .then(() => { sprites.clear(); lastFont = ''; }).catch(() => {});
   }
 
   function draw(now){
-    const { W, H, dpr, cx, cy, R, O, br, launchY } = geo;
+    const { dpr, cx, cy, R, O, br, launchY } = geo;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
+    paintBackground();
+    let sx = 0, sy = 0;
     if (game.shake > 0 && !reduced){
       const m = game.shake * game.shake * 9;
-      ctx.translate((Math.random() * 2 - 1) * m, (Math.random() * 2 - 1) * m);
+      sx = (Math.random() * 2 - 1) * m; sy = (Math.random() * 2 - 1) * m;
     }
+    ctx.translate(geo.offX + sx, geo.offY + sy);
     const A = game.angle, hit = game.hit, L = game.L;
     ctx.lineCap = 'round';
 
@@ -523,7 +566,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       ctx.beginPath(); ctx.moveTo(cx - hr * 0.3, cy + hr * 0.02); ctx.lineTo(cx - hr * 0.07, cy + hr * 0.25); ctx.lineTo(cx + hr * 0.32, cy - hr * 0.2); ctx.stroke();
     } else {
       ctx.fillStyle = P.hubInk; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = Math.round(hr * (game.queue >= 10 ? 0.62 : 0.72)) + 'px ' + DISPLAY;
+      setFont(Math.round(R * (game.queue >= 10 ? 0.62 : 0.72)) + 'px ' + DISPLAY);
       ctx.fillText(String(game.queue), cx, cy + hr * 0.05);
     }
 
@@ -677,6 +720,18 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     else if ((game.state === 'won' || game.state === 'lost') && performance.now() >= game.readyAt) primary();
   });
   document.addEventListener('touchend', unlockAudio, { passive: true });
+  document.addEventListener('click', unlockAudio, { passive: true });
+
+  // iPhone home-screen apps ignore the CSS that turns off double-tap zoom, and while zoom is
+  // possible iOS holds back quick taps to check for it. Cancelling the touch itself stops both.
+  // Buttons are left alone so they still click.
+  document.addEventListener('touchstart', (e) => {
+    const t = e.target instanceof Element ? e.target : null;
+    if (t && t.closest('button')) return;
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+  document.addEventListener('dblclick', (e) => e.preventDefault());
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape'){ if (game.state === 'menu') closeMenu(); else openMenu(); return; }
     if ((e.key === ' ' || e.key === 'ArrowUp') && game.state === 'play'){
@@ -706,7 +761,8 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     game.state = 'title';
     layout();
     showCard('title');
-    if (window.ResizeObserver) new ResizeObserver(layout).observe(stage); else window.addEventListener('resize', layout);
+    if (window.ResizeObserver) new ResizeObserver(layout).observe(stage);
+    window.addEventListener('resize', layout);
     requestAnimationFrame(frame);
     connectCloud();
   }
@@ -716,7 +772,17 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   // and the browser is asked not to clear saved progress when space runs low.
   // (Skipped inside claude.ai, and when index.html is opened straight from a folder.)
   if (!window.claude && /^https?:$/.test(location.protocol)){
-    if ('serviceWorker' in navigator) window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+    if ('serviceWorker' in navigator){
+      window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+      // When a new version finishes downloading, switch to it right away if nobody is mid-level.
+      const hadWorker = !!navigator.serviceWorker.controller;
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadWorker || reloading || game.state !== 'title') return;
+        reloading = true;
+        location.reload();
+      });
+    }
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   }
 })();
