@@ -24,6 +24,39 @@ The title screen and the Levels screen say where progress is being saved, and wa
 - **Save codes:** Levels → **Save code** shows a short code (like `E2R3-ATAE`) holding both difficulties' progress. Enter it on another phone or browser to pick up there. Restoring only ever moves progress forward, and a mistyped code is rejected.
 - **Home Screen tip:** in a phone's browser tab, the title screen suggests adding the game to the Home Screen, because Safari clears a site's data after about a week away. The tip never shows in the installed app, and tapping ✕ hides it for good.
 
+## Leaderboard
+
+Players who tap **Join the leaderboard** and pick a name share their furthest level on Normal and Hard. Nothing else is shared. Players who never join stay fully offline. The board shows on the title screen (top 3, plus your own rank) and in full from **See all** or Levels → **Leaderboard**.
+
+- **Syncing:** a phone sends its entry when the game opens, after each new furthest level, and as soon as it's back online. Offline, the board shows the last copy it downloaded and how old it is.
+- **Identity:** each phone gets an anonymous Firebase account. No email or password is involved. A new phone, or a cleared browser, is a new player until it joins again.
+- **Turning it off:** empty the `LEADERBOARD` settings near the top of the script in `index.html`, and the board disappears.
+- **Removing an entry:** open the [Firebase console](https://console.firebase.google.com), then Realtime Database → Data → `scores`. Hover over the entry and click the trash icon.
+
+It runs on a free Firebase project (Realtime Database and Anonymous sign-in). The web settings in `index.html` are public by design. These database rules are what protect the data: anyone can read the board, and a phone can only write its own entry, with a 1–16 character name and whole-number levels.
+
+```json
+{
+  "rules": {
+    "scores": {
+      ".read": true,
+      ".indexOn": ["normal", "hard"],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['name', 'normal', 'hard', 'updated'])",
+        "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
+        "normal": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000" },
+        "hard": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000" },
+        "updated": { ".validate": "newData.val() === now" },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
+```
+
+The game runs on players' phones, so someone tech-savvy could post a made-up level. Delete anything that looks wrong.
+
 ## Putting it on a phone
 
 The game is hosted free on GitHub Pages at **<https://brettondodge.github.io/spoke-shot/>**. Every push to `main` updates it within a minute or two.

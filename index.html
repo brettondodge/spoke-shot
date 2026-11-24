@@ -93,7 +93,7 @@ body{
 
 .diff{display:flex;gap:4px;padding:4px;border-radius:16px;background:color-mix(in srgb,var(--ink) 8%,transparent)}
 .diff-opt{flex:1;min-height:48px;padding:6px 10px;border:0;border-radius:12px;background:transparent;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
-.diff-opt[aria-checked="true"]{background:var(--ink);color:var(--card)}
+.diff-opt[aria-checked="true"],.diff-opt[aria-selected="true"]{background:var(--ink);color:var(--card)}
 .diff-name{font:700 15px/1.1 var(--font-ui)}
 .diff-lvl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75}
 .stepper{display:flex;align-items:center;gap:6px;margin-top:2px}
@@ -120,6 +120,29 @@ body{
 .btn-small{flex:none;min-height:48px;padding:0 16px;border-radius:12px;border:0;background:var(--ink);color:var(--card);font:700 15px/1 var(--font-ui);cursor:pointer}
 .code-msg{margin:0;min-height:1.4em;font-size:13.5px;line-height:1.4;color:var(--muted)}
 .code-msg.warn{color:var(--danger);font-weight:700}
+
+.card.with-board[data-kind="title"] .card-title{font-size:clamp(36px,10vw,46px)}
+.board{display:flex;flex-direction:column;gap:6px;padding:10px 10px 8px;border-radius:14px;background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.board-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px}
+.board-title{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.board-head .link-btn{padding:2px 0}
+.board-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.board-row{display:grid;grid-template-columns:2em minmax(0,1fr) auto;align-items:center;gap:8px;min-height:30px;padding:0 8px;border-radius:9px;font-size:15px}
+.board-row.me{background:color-mix(in srgb,var(--hub) 20%,var(--card))}
+.board-rank{font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.board-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.board-name small{font-size:12.5px;font-weight:400;color:var(--muted)}
+.board-lvl{font-family:var(--font-display);font-size:17px;font-variant-numeric:tabular-nums}
+.board-gap{text-align:center;color:var(--muted);font-size:13px;line-height:1}
+.board-empty{padding:4px 8px;color:var(--muted);font-size:14px;line-height:1.4}
+.board-status{margin:0;padding:0 4px;font-size:12.5px;line-height:1.4;color:var(--muted)}
+.board-status.warn{color:var(--danger);font-weight:700}
+.board-join{align-self:flex-start;min-height:40px;margin:2px 0 2px 4px}
+.board-full{display:flex;flex-direction:column;gap:8px}
+.name-in{min-height:48px;box-sizing:border-box;padding:0 12px;border-radius:12px;border:2px solid color-mix(in srgb,var(--ink) 24%,transparent);background:var(--card);color:var(--ink);font:700 17px/1 var(--font-ui);-webkit-user-select:text;user-select:text}
+.name-in::placeholder{font-weight:400;color:var(--muted)}
+.name-in:focus-visible{outline:3px solid var(--ink);outline-offset:1px}
+.join-box{display:flex;flex-direction:column;gap:8px}
 
 button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;margin:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -169,6 +192,15 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       <button type="button" class="diff-opt" data-mode="normal" role="radio" aria-checked="true"><span class="diff-name">Normal</span><span class="diff-lvl" id="diffLvlNormal">Level 1</span></button>
       <button type="button" class="diff-opt" data-mode="hard" role="radio" aria-checked="false"><span class="diff-name">Hard</span><span class="diff-lvl" id="diffLvlHard">Level 1</span></button>
     </div>
+    <section class="board" id="boardPanel" aria-label="Leaderboard" hidden>
+      <div class="board-head">
+        <span class="board-title" id="boardTitle">Leaderboard</span>
+        <button type="button" class="link-btn" id="boardAll">See all</button>
+      </div>
+      <ol class="board-list" id="boardList"></ol>
+      <p class="board-status" id="boardStatus" aria-live="polite"></p>
+      <button type="button" class="btn-small board-join" id="boardJoin">Join the leaderboard</button>
+    </section>
     <div class="stepper" id="stepper" hidden>
       <button class="step" type="button" data-step="-10" aria-label="Back 10 levels">−10</button>
       <button class="step" type="button" data-step="-1" aria-label="Back 1 level">−1</button>
@@ -188,11 +220,29 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       </div>
       <p class="code-msg" id="codeMsg" aria-live="polite"></p>
     </div>
+    <div class="board-full" id="boardFull" hidden>
+      <div class="diff" id="boardTabs" role="tablist" aria-label="Leaderboard difficulty">
+        <button type="button" class="diff-opt" data-board="normal" role="tab" aria-selected="true"><span class="diff-name">Normal</span></button>
+        <button type="button" class="diff-opt" data-board="hard" role="tab" aria-selected="false"><span class="diff-name">Hard</span></button>
+      </div>
+      <ol class="board-list" id="boardFullList"></ol>
+      <p class="board-status" id="boardFullStatus" aria-live="polite"></p>
+      <div class="card-links" id="boardMine">
+        <button type="button" class="link-btn" id="boardRename">Change name</button>
+        <button type="button" class="link-btn" id="boardLeave">Leave leaderboard</button>
+      </div>
+    </div>
+    <div class="join-box" id="joinBox" hidden>
+      <label class="code-label" for="nameIn">Your name</label>
+      <input class="name-in" id="nameIn" type="text" autocomplete="nickname" autocorrect="off" spellcheck="false" maxlength="16" placeholder="A name or nickname">
+      <p class="code-msg" id="joinMsg" aria-live="polite"></p>
+    </div>
     <div class="card-actions">
       <button class="btn primary" id="primaryBtn" type="button">Play level 1</button>
       <button class="btn ghost" id="secondaryBtn" type="button" hidden>Pick a level</button>
     </div>
     <div class="card-links" id="cardLinks" hidden>
+      <button class="link-btn" id="boardBtn" type="button" hidden>Leaderboard</button>
       <button class="link-btn" id="codeBtn" type="button">Save code</button>
       <button class="link-btn" id="resetBtn" type="button">Reset progress</button>
     </div>
@@ -214,12 +264,20 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   const cardLinks = $('cardLinks'), codeBtn = $('codeBtn'), codeBox = $('codeBox'), codeOut = $('codeOut'), codeCopy = $('codeCopy');
   const codeIn = $('codeIn'), codeRestore = $('codeRestore'), codeMsg = $('codeMsg');
   const installTip = $('installTip'), installText = $('installText'), installClose = $('installClose');
+  const boardPanel = $('boardPanel'), boardTitle = $('boardTitle'), boardAll = $('boardAll'), boardList = $('boardList');
+  const boardStatus = $('boardStatus'), boardJoin = $('boardJoin'), boardFull = $('boardFull'), boardTabs = $('boardTabs');
+  const boardFullList = $('boardFullList'), boardFullStatus = $('boardFullStatus'), boardMine = $('boardMine');
+  const boardRename = $('boardRename'), boardLeave = $('boardLeave'), joinBox = $('joinBox'), nameIn = $('nameIn'), joinMsg = $('joinMsg');
+  const boardBtn = $('boardBtn');
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   // ---- Tuning -------------------------------------------------------------
   const STORE = 'spoke-shot.v1';
   const BEAD = 0.0735;   // bead radius as a share of the orbit radius (about 42 beads fit edge to edge)
+  // Leaderboard: the Firebase project's web settings. Both values are public by design; the
+  // database rules (see README) are what protect the data. Leave them empty to turn the board off.
+  const LEADERBOARD = { apiKey: '', databaseURL: '' };
   const DISPLAY = '"Bagel Fat One","Arial Rounded MT Bold",sans-serif';
   const UI = '"Atkinson Hyperlegible",system-ui,sans-serif';
 
@@ -571,6 +629,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     sfx.win();
     best = Math.max(best, game.level + 1);
     save();
+    lbSync();
     announce('Level ' + game.level + ' cleared.');
     game.readyAt = performance.now() + 700;
     setTimeout(() => { if (game.state === 'won') showCard('won'); }, 600);
@@ -707,8 +766,14 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     card.dataset.kind = kind;
     stepper.hidden = kind !== 'menu';
     cardLinks.hidden = kind !== 'menu';
+    boardBtn.hidden = !lb.enabled;
     codeBox.hidden = kind !== 'code';
     installTip.hidden = !(kind === 'title' && tipWanted());
+    boardPanel.hidden = !(kind === 'title' && lb.enabled);
+    boardFull.hidden = kind !== 'board';
+    joinBox.hidden = kind !== 'join';
+    cardBody.hidden = false;
+    card.classList.toggle('with-board', !boardPanel.hidden);
     secondaryBtn.hidden = false;
     saveNote.hidden = !(kind === 'title' || kind === 'menu');
     diffPick.hidden = saveNote.hidden;
@@ -722,6 +787,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       primaryBtn.textContent = 'Play level ' + n;
       secondaryBtn.textContent = 'Pick a level';
       secondaryBtn.hidden = best <= 1;
+      if (lb.enabled && (n > 1 || best > 1 || lb.me.joined)) cardBody.hidden = true; // returning players know the rules; make room for the board
     } else if (kind === 'won'){
       const nw = worldOf(n + 1);
       cardEyebrow.textContent = 'Level ' + n + ' cleared';
@@ -749,12 +815,33 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       codeIn.value = ''; codeMsg.textContent = ''; codeMsg.classList.remove('warn');
       primaryBtn.textContent = 'Done';
       secondaryBtn.hidden = true;
+    } else if (kind === 'board'){
+      cardEyebrow.textContent = 'Leaderboard';
+      cardTitle.textContent = 'Furthest levels';
+      cardBody.textContent = lb.me.joined
+        ? 'You’re on the board as ' + lb.me.name + '.'
+        : 'Join to put your name on the board. Only your name and furthest levels are shared.';
+      primaryBtn.textContent = 'Done';
+      secondaryBtn.textContent = 'Join the leaderboard';
+      secondaryBtn.hidden = lb.me.joined;
+      disarmLeave();
+    } else if (kind === 'join'){
+      const renaming = lb.me.joined;
+      cardEyebrow.textContent = 'Leaderboard';
+      cardTitle.textContent = renaming ? 'Change your name' : 'Join the leaderboard';
+      cardBody.textContent = 'Everyone who plays Spoke Shot will see this name and your furthest level on Normal and Hard. Nothing else is shared. A nickname works great.';
+      nameIn.value = lb.me.name || '';
+      joinMsg.textContent = ''; joinMsg.classList.remove('warn');
+      primaryBtn.textContent = renaming ? 'Save name' : 'Join';
+      secondaryBtn.textContent = 'Cancel';
     }
     renderSaveNote();
     renderDiff();
+    renderBoards();
     card.hidden = false;
     if (!reduced){ card.classList.remove('rise'); void card.offsetWidth; card.classList.add('rise'); }
-    try { primaryBtn.focus({ preventScroll: true }); } catch (e) {}
+    try { (kind === 'join' ? nameIn : primaryBtn).focus({ preventScroll: true }); } catch (e) {}
+    if (kind === 'title' || kind === 'board') lbFetchBoard(false);
   }
   function hideCard(){ card.hidden = true; }
 
@@ -862,6 +949,249 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     ? 'Keep your progress safe: add Spoke Shot to your Home Screen. Tap Share, then Add to Home Screen.'
     : 'Keep your progress safe: install Spoke Shot. Tap ⋮, then Add to Home screen.';
 
+  // ---- Leaderboard -----------------------------------------------------------
+  // Players who join (by picking a name) share their furthest level on Normal and Hard.
+  // It talks to Firebase over plain web requests: anonymous sign-in gives each phone an id,
+  // and the database rules only let a phone change its own entry. Offline, the menu shows the
+  // last board it downloaded, and the phone's own entry waits until it's back online.
+  const LB_KEY = 'spoke-shot.board';
+  const LB_BASE = LEADERBOARD.databaseURL.replace(/\/+$/, '');
+  const lb = {
+    enabled: !!(LEADERBOARD.apiKey && LB_BASE) && !window.claude && typeof fetch === 'function',
+    scores: {}, at: 0, lastTry: 0, loading: false, readError: '', busy: false, again: false, syncError: '', tab: 'normal',
+    me: { uid: '', refresh: '', idToken: '', idExp: 0, name: '', joined: false, sent: null, pendingDelete: false },
+  };
+  function cleanName(s){
+    return String(s == null ? '' : s)
+      .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '')
+      .replace(/\s+/g, ' ').trim().slice(0, 16).replace(/[\ud800-\udbff]$/, '').trim();
+  }
+  function cleanScores(data){
+    const out = {};
+    if (!data || typeof data !== 'object') return out;
+    for (const uid of Object.keys(data)){
+      const s = data[uid], name = s && typeof s === 'object' ? cleanName(s.name) : '';
+      if (!name) continue;
+      out[uid] = { name, normal: Math.max(1, Math.floor(Number(s.normal)) || 1), hard: Math.max(1, Math.floor(Number(s.hard)) || 1), updated: Number(s.updated) || 0 };
+    }
+    return out;
+  }
+  function lbLoad(){
+    try {
+      const s = JSON.parse(localStorage.getItem(LB_KEY) || '{}') || {};
+      const m = s.me || {}, name = cleanName(m.name);
+      Object.assign(lb.me, { uid: String(m.uid || ''), refresh: String(m.refresh || ''), name, joined: !!m.joined && !!name,
+        sent: m.sent && typeof m.sent === 'object' ? m.sent : null, pendingDelete: !!m.pendingDelete });
+      lb.scores = cleanScores(s.scores); lb.at = Number(s.at) || 0;
+    } catch (e) {}
+  }
+  function lbSave(){
+    const m = lb.me;
+    try { localStorage.setItem(LB_KEY, JSON.stringify({ me: { uid: m.uid, refresh: m.refresh, name: m.name, joined: m.joined, sent: m.sent, pendingDelete: m.pendingDelete }, scores: lb.scores, at: lb.at })); } catch (e) {}
+  }
+  async function lbFetch(url, opts){
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : 0;
+    try { return await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}, ctl ? { signal: ctl.signal } : {})); }
+    finally { clearTimeout(timer); }
+  }
+  const lbUrl = (path, token) => LB_BASE + '/' + path + '.json' + (token ? '?auth=' + encodeURIComponent(token) : '');
+  const offlineNow = () => navigator.onLine === false;
+
+  // A short-lived sign-in token for this phone's anonymous account, renewed as needed.
+  async function lbToken(){
+    const me = lb.me, key = encodeURIComponent(LEADERBOARD.apiKey);
+    if (me.idToken && Date.now() < me.idExp - 60000) return me.idToken;
+    let res, data;
+    if (me.refresh){
+      res = await lbFetch('https://securetoken.googleapis.com/v1/token?key=' + key, {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(me.refresh),
+      });
+      if (res.ok){
+        data = await res.json();
+        Object.assign(me, { uid: data.user_id, refresh: data.refresh_token, idToken: data.id_token, idExp: Date.now() + Number(data.expires_in) * 1000 });
+        lbSave();
+        return me.idToken;
+      }
+      if (res.status !== 400) throw new Error('token ' + res.status); // 400: this phone's account is gone, so make a new one
+    }
+    res = await lbFetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + key, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"returnSecureToken":true}',
+    });
+    if (!res.ok) throw new Error('sign-up ' + res.status);
+    data = await res.json();
+    if (me.uid && me.uid !== data.localId){ delete lb.scores[me.uid]; me.sent = null; me.pendingDelete = false; }
+    Object.assign(me, { uid: data.localId, refresh: data.refreshToken, idToken: data.idToken, idExp: Date.now() + Number(data.expiresIn) * 1000 });
+    lbSave();
+    return me.idToken;
+  }
+  function lbEntry(){ const p = progress(); return { name: lb.me.name, normal: p.normal.best, hard: p.hard.best }; }
+  function lbUnsent(){
+    const m = lb.me;
+    if (!m.joined) return m.pendingDelete;
+    const e = lbEntry(), s = m.sent;
+    return !s || s.name !== e.name || s.normal !== e.normal || s.hard !== e.hard;
+  }
+  // Sends this phone's entry (or removes it after leaving) when something changed. One at a time.
+  async function lbSync(){
+    if (!lb.enabled) return;
+    if (lb.busy){ lb.again = true; return; }
+    if (!lbUnsent()){ lb.syncError = ''; return; }
+    lb.busy = true; renderBoards();
+    try {
+      const me = lb.me;
+      if (me.pendingDelete && me.uid && !me.joined){
+        const token = await lbToken();
+        if (me.pendingDelete){ // still set unless the phone had to start a fresh account (nothing to remove then)
+          const res = await lbFetch(lbUrl('scores/' + me.uid, token), { method: 'DELETE' });
+          if (res.status === 401 || res.status === 403) me.idToken = '';
+          if (!res.ok) throw new Error('delete ' + res.status);
+          me.pendingDelete = false; delete lb.scores[me.uid]; lbSave();
+        }
+      }
+      if (me.joined){
+        const entry = lbEntry();
+        const token = await lbToken();
+        const res = await lbFetch(lbUrl('scores/' + me.uid, token), {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: entry.name, normal: entry.normal, hard: entry.hard, updated: { '.sv': 'timestamp' } }),
+        });
+        if (res.status === 401 || res.status === 403) me.idToken = '';
+        if (!res.ok) throw new Error('save ' + res.status);
+        me.sent = entry; me.pendingDelete = false;
+        lb.scores[me.uid] = { name: entry.name, normal: entry.normal, hard: entry.hard, updated: Date.now() };
+        lbSave();
+      }
+      lb.syncError = '';
+    } catch (e) {
+      lb.syncError = offlineNow() || (e && (e.name === 'TypeError' || e.name === 'AbortError')) ? 'offline' : 'error';
+    } finally {
+      lb.busy = false; renderBoards();
+    }
+    if (lb.again){ lb.again = false; lbSync(); }
+  }
+  // Downloads the whole board (small: one short entry per player). Throttled unless forced.
+  async function lbFetchBoard(force){
+    if (!lb.enabled || lb.loading) return;
+    if (!force && Date.now() - lb.lastTry < 20000) return;
+    lb.lastTry = Date.now(); lb.loading = true; renderBoards();
+    try {
+      const res = await lbFetch(lbUrl('scores'));
+      if (!res.ok) throw new Error('read ' + res.status);
+      lb.scores = cleanScores(await res.json()); lb.at = Date.now(); lb.readError = '';
+      lbSave();
+    } catch (e) {
+      lb.readError = offlineNow() || (e && (e.name === 'TypeError' || e.name === 'AbortError')) ? 'offline' : 'error';
+    } finally {
+      lb.loading = false; renderBoards();
+    }
+  }
+  function lbRanking(m){
+    const me = lb.me, rows = [];
+    for (const uid of Object.keys(lb.scores)){
+      if (uid === me.uid && !me.joined) continue; // just left; the removal may still be on its way
+      const s = lb.scores[uid];
+      rows.push({ name: s.name, level: s[m], updated: s.updated, me: uid === me.uid && !!me.uid });
+    }
+    if (me.joined){ // show your newest level and name right away, even before they're sent
+      const e = lbEntry(), mine = rows.find((r) => r.me);
+      if (mine){ mine.name = e.name; mine.level = e[m]; }
+      else rows.push({ name: e.name, level: e[m], updated: Date.now(), me: true });
+    }
+    const shown = rows.filter((r) => r.level >= 2 || r.me); // level 1 = hasn't cleared one yet
+    shown.sort((a, b) => (b.level - a.level) || (a.updated - b.updated) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    shown.forEach((r, i) => { r.rank = i + 1; });
+    return shown;
+  }
+  function ago(ms){
+    const s = Math.max(0, (Date.now() - ms) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + ' min ago';
+    if (s < 86400) return Math.floor(s / 3600) + ' hr ago';
+    const d = Math.floor(s / 86400);
+    return d + (d === 1 ? ' day ago' : ' days ago');
+  }
+  function lbStatus(){
+    let text = '', warn = false;
+    if (lb.loading && !lb.at) text = 'loading the leaderboard…';
+    else if (lb.readError && !lb.at){ text = lb.readError === 'offline' ? 'connect to the internet to see the leaderboard.' : 'the leaderboard isn’t available right now.'; warn = lb.readError !== 'offline'; }
+    else if (lb.at) text = (lb.readError === 'offline' ? 'offline · ' : lb.readError ? 'couldn’t refresh · ' : '') + 'updated ' + ago(lb.at);
+    if (lb.me.joined && lb.busy) text += (text ? ' · ' : '') + 'saving your level…';
+    else if (lb.me.joined && lbUnsent() && lb.syncError) text += (text ? ' · ' : '') + (lb.syncError === 'offline' ? 'your level will sync when you’re online' : 'couldn’t save your level yet, will retry');
+    return { text: text.charAt(0).toUpperCase() + text.slice(1), warn };
+  }
+  function lbRow(r){
+    const li = document.createElement('li');
+    li.className = 'board-row' + (r.me ? ' me' : '');
+    const rank = document.createElement('span'); rank.className = 'board-rank'; rank.textContent = String(r.rank);
+    const name = document.createElement('span'); name.className = 'board-name'; name.textContent = r.name;
+    if (r.me){ const you = document.createElement('small'); you.textContent = ' (you)'; name.appendChild(you); }
+    const lvl = document.createElement('span'); lvl.className = 'board-lvl'; lvl.textContent = String(r.level);
+    li.appendChild(rank); li.appendChild(name); li.appendChild(lvl);
+    return li;
+  }
+  function lbFill(list, rows, limit){
+    list.textContent = '';
+    rows.slice(0, limit).forEach((r) => list.appendChild(lbRow(r)));
+    const mine = rows.find((r) => r.me);
+    if (mine && mine.rank > limit){
+      const gap = document.createElement('li'); gap.className = 'board-gap'; gap.setAttribute('aria-hidden', 'true'); gap.textContent = '···';
+      list.appendChild(gap); list.appendChild(lbRow(mine));
+    }
+    if (!rows.length){
+      const li = document.createElement('li'); li.className = 'board-empty';
+      li.textContent = lb.at || !lb.readError ? 'No one has cleared a level here yet. Join and be the first.' : 'No leaderboard saved on this phone yet.';
+      list.appendChild(li);
+    }
+  }
+  function lbShowStatus(el){ const s = lbStatus(); el.textContent = s.text; el.classList.toggle('warn', s.warn); el.hidden = !s.text; }
+  function renderBoards(){
+    if (!lb.enabled) return;
+    if (!boardPanel.hidden){
+      boardTitle.textContent = 'Leaderboard · ' + DIFFS[mode].label;
+      lbFill(boardList, lbRanking(mode), 3);
+      lbShowStatus(boardStatus);
+      boardJoin.hidden = lb.me.joined;
+    }
+    if (!boardFull.hidden){
+      boardTabs.querySelectorAll('[data-board]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.board === lb.tab)));
+      lbFill(boardFullList, lbRanking(lb.tab), 100);
+      lbShowStatus(boardFullStatus);
+      boardMine.hidden = !lb.me.joined;
+    }
+  }
+  let joinFrom = 'title', boardFrom = 'title', leaveArmed = 0;
+  function openOverlay(kind){ if (game.state !== 'menu'){ menuFrom = game.state; game.state = 'menu'; } showCard(kind); }
+  function openBoard(){
+    boardFrom = game.state === 'menu' && card.dataset.kind === 'menu' ? 'menu' : 'title'; // Done goes back where you came from
+    lb.tab = mode;
+    openOverlay('board');
+  }
+  function closeBoard(){ if (boardFrom === 'menu') showCard('menu'); else closeMenu(); }
+  function openJoin(from){ joinFrom = from; openOverlay('join'); }
+  function cancelJoin(){ if (joinFrom === 'board') showCard('board'); else closeMenu(); }
+  function submitName(){
+    const name = cleanName(nameIn.value);
+    if (!name){ joinMsg.textContent = 'Type a name first.'; joinMsg.classList.add('warn'); return; }
+    const renamed = lb.me.joined;
+    Object.assign(lb.me, { name, joined: true, pendingDelete: false });
+    lbSave();
+    nameIn.blur();
+    if (joinFrom === 'board') showCard('board'); else closeMenu();
+    announce(renamed ? 'Your leaderboard name is now ' + name + '.' : 'You joined the leaderboard as ' + name + '.');
+    lbSync();
+  }
+  function disarmLeave(){ clearTimeout(leaveArmed); leaveArmed = 0; boardLeave.textContent = 'Leave leaderboard'; boardLeave.classList.remove('armed'); }
+  function lbStart(){
+    if (!lb.enabled) return;
+    lbLoad();
+    lbFetchBoard(true);
+    lbSync();
+    window.addEventListener('online', () => { lbFetchBoard(true); lbSync(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden){ lbFetchBoard(false); lbSync(); } });
+  }
+
   function startPlay(){
     hideCard();
     game.state = 'play';
@@ -886,13 +1216,44 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     else if (kind === 'lost'){ loadLevel(game.level); startPlay(); }
     else if (kind === 'menu'){ loadLevel(pick); save(); startPlay(); }
     else if (kind === 'code') showCard('menu');
+    else if (kind === 'board') closeBoard();
+    else if (kind === 'join') submitName();
   }
 
   let resetArmed = 0;
   function disarmReset(){ clearTimeout(resetArmed); resetArmed = 0; resetBtn.textContent = 'Reset ' + DIFFS[mode].label + ' progress'; resetBtn.classList.remove('armed'); }
 
   primaryBtn.addEventListener('click', primary);
-  secondaryBtn.addEventListener('click', () => { if (card.dataset.kind === 'menu') closeMenu(); else openMenu(); });
+  secondaryBtn.addEventListener('click', () => {
+    const kind = card.dataset.kind;
+    if (kind === 'menu') closeMenu();
+    else if (kind === 'board') openJoin('board');
+    else if (kind === 'join') cancelJoin();
+    else openMenu();
+  });
+  boardAll.addEventListener('click', openBoard);
+  boardBtn.addEventListener('click', openBoard);
+  boardJoin.addEventListener('click', () => openJoin('title'));
+  boardRename.addEventListener('click', () => openJoin('board'));
+  boardTabs.addEventListener('click', (e) => { const b = e.target.closest('[data-board]'); if (b){ lb.tab = b.dataset.board; renderBoards(); } });
+  boardLeave.addEventListener('click', () => {
+    if (!leaveArmed){
+      leaveArmed = setTimeout(disarmLeave, 3500);
+      boardLeave.textContent = 'Tap again to remove your name';
+      boardLeave.classList.add('armed');
+      return;
+    }
+    disarmLeave();
+    const me = lb.me;
+    me.joined = false; me.sent = null;
+    if (me.uid){ me.pendingDelete = true; delete lb.scores[me.uid]; }
+    lbSave();
+    showCard('board');
+    announce('You left the leaderboard.');
+    lbSync();
+  });
+  nameIn.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); submitName(); } });
+  nameIn.addEventListener('blur', () => { setTimeout(() => window.scrollTo(0, 0), 60); });
   menuBtn.addEventListener('click', (e) => { if (game.state === 'menu') closeMenu(); else openMenu(); if (e.detail) menuBtn.blur(); });
   soundBtn.addEventListener('click', (e) => {
     muted = !muted;
@@ -914,7 +1275,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     }
     disarmReset();
     best = 1; pick = 1; menuFrom = 'title'; prog[mode] = { best: 1, level: 1 };
-    loadLevel(1); save();
+    loadLevel(1); save(); lbSync();
     cardEyebrow.textContent = menuEyebrow();
     updatePick(); renderDiff();
     announce(DIFFS[mode].label + ' progress erased. Back to level 1.');
@@ -938,7 +1299,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     const res = restoreCode(codeIn.value);
     codeMsg.textContent = res.msg;
     codeMsg.classList.toggle('warn', !res.ok);
-    if (res.ok){ codeOut.textContent = encodeSave(progress()); codeIn.value = ''; codeIn.blur(); }
+    if (res.ok){ codeOut.textContent = encodeSave(progress()); codeIn.value = ''; codeIn.blur(); lbSync(); }
   }
   codeRestore.addEventListener('click', doRestore);
   codeIn.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); doRestore(); } });
@@ -976,6 +1337,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape'){
       if (card.dataset.kind === 'code' && !card.hidden) showCard('menu');
+      else if (card.dataset.kind === 'board' && !card.hidden) closeBoard();
       else if (game.state === 'menu') closeMenu();
       else openMenu();
       return;
@@ -1005,6 +1367,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     best = prog[mode].best;
     loadLevel(clamp(prog[mode].level, 1, best));
     game.state = 'title';
+    lbStart();
     layout();
     showCard('title');
     if (window.ResizeObserver) new ResizeObserver(layout).observe(stage);
