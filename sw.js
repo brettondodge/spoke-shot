@@ -4,7 +4,7 @@
 // Bump the CACHE number with every release: that is what tells installed copies to switch over
 // on their next launch. If you add or rename files, add them to FILES too.
 
-const CACHE = 'spoke-shot-v6';
+const CACHE = 'spoke-shot-v7';
 const FILES = [
   './',
   './index.html',
