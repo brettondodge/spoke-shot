@@ -143,6 +143,14 @@ body{
 .name-in::placeholder{font-weight:400;color:var(--muted)}
 .name-in:focus-visible{outline:3px solid var(--ink);outline-offset:1px}
 .join-box{display:flex;flex-direction:column;gap:8px}
+.admin-list{display:flex;flex-direction:column;gap:4px}
+.admin-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:6px 12px;border:0;border-radius:12px;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink);font:700 15px/1.2 var(--font-ui);text-align:left;cursor:pointer}
+.admin-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admin-row small{flex:none;font-size:13px;font-weight:400;color:var(--muted)}
+.admin-levels{display:flex;gap:8px}
+.admin-field{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.admin-field .name-in{width:100%}
+.link-btn.admin-erase{align-self:flex-start;color:var(--danger)}
 
 button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .sr{position:absolute;width:1px;height:1px;margin:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -154,7 +162,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   <canvas id="cv" role="img" aria-label="A spinning hub with spokes stuck in it"></canvas>
 
   <header class="hud">
-    <div class="lvl">
+    <div class="lvl" id="lvlBox">
       <span class="lvl-top"><span class="lvl-num" id="lvlNum">Level 1</span><span class="mode-tag" id="modeTag" hidden>Hard</span></span>
       <span class="lvl-world" id="lvlWorld">Daybreak · 1 of 10</span>
     </div>
@@ -237,6 +245,27 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       <input class="name-in" id="nameIn" type="text" autocomplete="nickname" autocorrect="off" spellcheck="false" maxlength="16" placeholder="A name or nickname">
       <p class="code-msg" id="joinMsg" aria-live="polite"></p>
     </div>
+    <div class="join-box" id="adminLoginBox" hidden>
+      <label class="code-label" for="adminUser">User</label>
+      <input class="name-in" id="adminUser" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="100">
+      <label class="code-label" for="adminPass">Password</label>
+      <input class="name-in" id="adminPass" type="password" autocomplete="current-password" maxlength="200">
+      <p class="code-msg" id="adminLoginMsg" aria-live="polite"></p>
+    </div>
+    <div class="board-full" id="adminBox" hidden>
+      <div class="admin-list" id="adminList" role="list"></div>
+      <p class="board-status" id="adminListMsg" aria-live="polite"></p>
+    </div>
+    <div class="join-box" id="adminEditBox" hidden>
+      <label class="code-label" for="adminName">Name</label>
+      <input class="name-in" id="adminName" type="text" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="16">
+      <div class="admin-levels">
+        <label class="admin-field" for="adminNormal"><span class="code-label">Normal level</span><input class="name-in" id="adminNormal" type="number" inputmode="numeric" min="1" step="1"></label>
+        <label class="admin-field" for="adminHard"><span class="code-label">Hard level</span><input class="name-in" id="adminHard" type="number" inputmode="numeric" min="1" step="1"></label>
+      </div>
+      <button type="button" class="link-btn admin-erase" id="adminErase">Erase this player</button>
+      <p class="code-msg" id="adminEditMsg" aria-live="polite"></p>
+    </div>
     <div class="card-actions">
       <button class="btn primary" id="primaryBtn" type="button">Play level 1</button>
       <button class="btn ghost" id="secondaryBtn" type="button" hidden>Pick a level</button>
@@ -268,7 +297,11 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   const boardStatus = $('boardStatus'), boardJoin = $('boardJoin'), boardFull = $('boardFull'), boardTabs = $('boardTabs');
   const boardFullList = $('boardFullList'), boardFullStatus = $('boardFullStatus'), boardMine = $('boardMine');
   const boardRename = $('boardRename'), boardLeave = $('boardLeave'), joinBox = $('joinBox'), nameIn = $('nameIn'), joinMsg = $('joinMsg');
-  const boardBtn = $('boardBtn');
+  const boardBtn = $('boardBtn'), lvlBox = $('lvlBox');
+  const adminLoginBox = $('adminLoginBox'), adminUser = $('adminUser'), adminPass = $('adminPass'), adminLoginMsg = $('adminLoginMsg');
+  const adminBox = $('adminBox'), adminList = $('adminList'), adminListMsg = $('adminListMsg');
+  const adminEditBox = $('adminEditBox'), adminName = $('adminName'), adminNormal = $('adminNormal'), adminHard = $('adminHard');
+  const adminErase = $('adminErase'), adminEditMsg = $('adminEditMsg');
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
@@ -280,6 +313,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   const LEADERBOARD = {
     apiKey: 'AIzaSyBXXixxqEgVBje3X4VyJAL4WcGep5dAv9c',                // Firebase project "spoke-shot"
     databaseURL: 'https://spoke-shot-default-rtdb.firebaseio.com',
+    adminDomain: 'spoke-shot.firebaseapp.com', // admin sign-in "Admin" = admin@spoke-shot.firebaseapp.com (a Firebase account; no password here)
   };
   const DISPLAY = '"Bagel Fat One","Arial Rounded MT Bold",sans-serif';
   const UI = '"Atkinson Hyperlegible",system-ui,sans-serif';
@@ -775,6 +809,9 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     boardPanel.hidden = !(kind === 'title' && lb.enabled);
     boardFull.hidden = kind !== 'board';
     joinBox.hidden = kind !== 'join';
+    adminLoginBox.hidden = kind !== 'admin-login';
+    adminBox.hidden = kind !== 'admin';
+    adminEditBox.hidden = kind !== 'admin-edit';
     cardBody.hidden = false;
     card.classList.toggle('with-board', !boardPanel.hidden);
     secondaryBtn.hidden = false;
@@ -837,13 +874,37 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       joinMsg.textContent = ''; joinMsg.classList.remove('warn');
       primaryBtn.textContent = renaming ? 'Save name' : 'Join';
       secondaryBtn.textContent = 'Cancel';
+    } else if (kind === 'admin-login'){
+      cardEyebrow.textContent = 'Admin';
+      cardTitle.textContent = 'Admin sign-in';
+      cardBody.textContent = 'For the owner of Spoke Shot. Players never need this.';
+      adminUser.value = ''; adminPass.value = '';
+      adminLoginMsg.textContent = adminLoginMsgNext; adminLoginMsg.classList.toggle('warn', !!adminLoginMsgNext); adminLoginMsgNext = '';
+      primaryBtn.textContent = 'Sign in';
+      secondaryBtn.textContent = 'Cancel';
+    } else if (kind === 'admin'){
+      cardEyebrow.textContent = 'Admin';
+      cardTitle.textContent = 'Manage players';
+      cardBody.textContent = 'Tap a player to rename them, change their levels or erase them. Changes reach their phone the next time it connects.';
+      primaryBtn.textContent = 'Done';
+      secondaryBtn.textContent = 'Sign out';
+    } else if (kind === 'admin-edit'){
+      const s = lb.scores[adminEditing] || { name: '', normal: 1, hard: 1 };
+      cardEyebrow.textContent = 'Admin · edit player';
+      cardTitle.textContent = s.name || 'Player';
+      cardBody.textContent = 'Their game progress will follow these levels the next time their phone connects.';
+      adminName.value = s.name; adminNormal.value = String(s.normal); adminHard.value = String(s.hard);
+      adminEditMsg.textContent = ''; adminEditMsg.classList.remove('warn');
+      disarmErase();
+      primaryBtn.textContent = 'Save changes';
+      secondaryBtn.textContent = 'Back';
     }
     renderSaveNote();
     renderDiff();
     renderBoards();
     card.hidden = false;
     if (!reduced){ card.classList.remove('rise'); void card.offsetWidth; card.classList.add('rise'); }
-    try { (kind === 'join' ? nameIn : primaryBtn).focus({ preventScroll: true }); } catch (e) {}
+    try { (kind === 'join' ? nameIn : kind === 'admin-login' ? adminUser : primaryBtn).focus({ preventScroll: true }); } catch (e) {}
     if (kind === 'title' || kind === 'board') lbFetchBoard(false);
   }
   function hideCard(){ card.hidden = true; }
@@ -961,7 +1022,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   const LB_BASE = LEADERBOARD.databaseURL.replace(/\/+$/, '');
   const lb = {
     enabled: !!(LEADERBOARD.apiKey && LB_BASE) && !window.claude && typeof fetch === 'function',
-    scores: {}, at: 0, lastTry: 0, loading: false, readError: '', busy: false, again: false, syncError: '', tab: 'normal',
+    scores: {}, at: 0, lastTry: 0, loading: false, readError: '', busy: false, again: false, syncError: '', tab: 'normal', notice: '',
     me: { uid: '', refresh: '', idToken: '', idExp: 0, name: '', joined: false, sent: null, pendingDelete: false },
   };
   function cleanName(s){
@@ -1054,17 +1115,27 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
         }
       }
       if (me.joined){
-        const entry = lbEntry();
         const token = await lbToken();
-        const res = await lbFetch(lbUrl('scores/' + me.uid, token), {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: entry.name, normal: entry.normal, hard: entry.hard, updated: { '.sv': 'timestamp' } }),
-        });
-        if (res.status === 401 || res.status === 403) me.idToken = '';
-        if (!res.ok) throw new Error('save ' + res.status);
-        me.sent = entry; me.pendingDelete = false;
-        lb.scores[me.uid] = { name: entry.name, normal: entry.normal, hard: entry.hard, updated: Date.now() };
-        lbSave();
+        // If an admin changed or erased this entry since our last save, take that first
+        // instead of overwriting it.
+        if (me.sent && me.uid){
+          const check = await lbFetch(lbUrl('scores/' + me.uid));
+          if (check.ok) lbReconcile(cleanEntry(await check.json()), Date.now());
+        }
+        if (me.joined && lbUnsent()){
+          const entry = lbEntry();
+          const res = await lbFetch(lbUrl('scores/' + me.uid, token), {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: entry.name, normal: entry.normal, hard: entry.hard, updated: { '.sv': 'timestamp' } }),
+          });
+          if (res.status === 401 || res.status === 403) me.idToken = '';
+          if (!res.ok) throw new Error('save ' + res.status);
+          const saved = cleanEntry(await res.json().catch(() => null)); // the database answers with its own save time
+          me.sent = { name: entry.name, normal: entry.normal, hard: entry.hard, updated: saved ? saved.updated : 0, at: Date.now() };
+          me.pendingDelete = false;
+          lb.scores[me.uid] = { name: entry.name, normal: entry.normal, hard: entry.hard, updated: saved ? saved.updated : Date.now() };
+          lbSave();
+        }
       }
       lb.syncError = '';
     } catch (e) {
@@ -1078,17 +1149,54 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   async function lbFetchBoard(force){
     if (!lb.enabled || lb.loading) return;
     if (!force && Date.now() - lb.lastTry < 20000) return;
-    lb.lastTry = Date.now(); lb.loading = true; renderBoards();
+    const started = Date.now();
+    lb.lastTry = started; lb.loading = true; renderBoards();
     try {
       const res = await lbFetch(lbUrl('scores'));
       if (!res.ok) throw new Error('read ' + res.status);
       lb.scores = cleanScores(await res.json()); lb.at = Date.now(); lb.readError = '';
       lbSave();
+      if (!lb.busy) lbReconcile(lb.scores[lb.me.uid] || null, started); // mid-save, our own write could look like an admin edit
     } catch (e) {
       lb.readError = offlineNow() || (e && (e.name === 'TypeError' || e.name === 'AbortError')) ? 'offline' : 'error';
     } finally {
       lb.loading = false; renderBoards();
     }
+  }
+  function cleanEntry(data){ return data ? cleanScores({ x: data }).x || null : null; }
+  // Compares this phone's entry on the server with what the phone last saved. A newer save
+  // time means an admin edited it; a missing entry (in a read that began after our last
+  // save) means an admin erased it.
+  function lbReconcile(cur, readStartedAt){
+    const me = lb.me, sent = me.sent;
+    if (!me.joined || !me.uid || !sent) return;
+    if (!sent.updated){ // saved by an older version of the game, before save times were kept
+      if (cur && cur.name === sent.name && cur.normal === sent.normal && cur.hard === sent.hard){ sent.updated = cur.updated; sent.at = Date.now(); lbSave(); }
+      return;
+    }
+    if (!cur){ if (readStartedAt > (sent.at || 0)) lbRemoved(); return; }
+    if (cur.updated > sent.updated) lbAdopt(cur);
+  }
+  // An admin's edit wins: take the name, and set this phone's furthest levels to match.
+  function lbAdopt(cur){
+    const me = lb.me;
+    me.name = cur.name;
+    prog[mode] = { best, level: resumeLevel() };
+    for (const m of MODES){ const b = Math.max(1, cur[m]); prog[m] = { best: b, level: clamp(prog[m].level, 1, b) }; }
+    best = prog[mode].best;
+    me.sent = { name: cur.name, normal: cur.normal, hard: cur.hard, updated: cur.updated, at: Date.now() };
+    lb.notice = 'An admin updated your leaderboard entry.';
+    lbSave(); save();
+    announce(lb.notice);
+    if (game.state === 'title'){ loadLevel(clamp(prog[mode].level, 1, best)); showCard('title'); }
+    else if (game.state === 'menu' && card.dataset.kind === 'menu'){ cardEyebrow.textContent = menuEyebrow(); updatePick(); renderDiff(); }
+  }
+  function lbRemoved(){
+    Object.assign(lb.me, { joined: false, sent: null, pendingDelete: false });
+    lb.notice = 'An admin removed you from the leaderboard. You can join again anytime.';
+    lbSave();
+    announce(lb.notice);
+    if (game.state === 'title') showCard('title');
   }
   function lbRanking(m){
     const me = lb.me, rows = [];
@@ -1122,7 +1230,9 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     else if (lb.at) text = (lb.readError === 'offline' ? 'offline · ' : lb.readError ? 'couldn’t refresh · ' : '') + 'updated ' + ago(lb.at);
     if (lb.me.joined && lb.busy) text += (text ? ' · ' : '') + 'saving your level…';
     else if (lb.me.joined && lbUnsent() && lb.syncError) text += (text ? ' · ' : '') + (lb.syncError === 'offline' ? 'your level will sync when you’re online' : 'couldn’t save your level yet, will retry');
-    return { text: text.charAt(0).toUpperCase() + text.slice(1), warn };
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+    if (lb.notice) text = lb.notice + (text ? ' ' + text : '');
+    return { text, warn };
   }
   function lbRow(r){
     const li = document.createElement('li');
@@ -1163,6 +1273,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
       lbShowStatus(boardFullStatus);
       boardMine.hidden = !lb.me.joined;
     }
+    renderAdmin();
   }
   let joinFrom = 'title', boardFrom = 'title', leaveArmed = 0;
   function openOverlay(kind){ if (game.state !== 'menu'){ menuFrom = game.state; game.state = 'menu'; } showCard(kind); }
@@ -1179,6 +1290,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     if (!name){ joinMsg.textContent = 'Type a name first.'; joinMsg.classList.add('warn'); return; }
     const renamed = lb.me.joined;
     Object.assign(lb.me, { name, joined: true, pendingDelete: false });
+    lb.notice = '';
     lbSave();
     nameIn.blur();
     if (joinFrom === 'board') showCard('board'); else closeMenu();
@@ -1186,13 +1298,120 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     lbSync();
   }
   function disarmLeave(){ clearTimeout(leaveArmed); leaveArmed = 0; boardLeave.textContent = 'Leave leaderboard'; boardLeave.classList.remove('armed'); }
+
+  // ---- Admin -----------------------------------------------------------------
+  // Hold the Level label for 3 seconds to sign in as the admin. The password is checked by
+  // Firebase (it is never in this file), and the database rules let only that one account
+  // edit other players' entries. "Admin" as the user means admin@<LEADERBOARD.adminDomain>.
+  let admin = null, adminEditing = '', adminNote = '', adminLoginMsgNext = '', eraseArmed = 0, holdTimer = 0;
+  const adminErrors = {
+    INVALID_LOGIN_CREDENTIALS: 'That user or password is wrong.', INVALID_PASSWORD: 'That user or password is wrong.',
+    EMAIL_NOT_FOUND: 'That user or password is wrong.', INVALID_EMAIL: 'That user or password is wrong.',
+    USER_DISABLED: 'This admin account is turned off in Firebase.',
+    OPERATION_NOT_ALLOWED: 'Email/Password sign-in isn’t turned on in Firebase yet.',
+    TOO_MANY_ATTEMPTS_TRY_LATER: 'Too many tries. Wait a few minutes and try again.',
+  };
+  function openAdmin(){ if (lb.enabled) openOverlay(admin ? 'admin' : 'admin-login'); }
+  async function adminSignIn(){
+    const user = adminUser.value.trim(), password = adminPass.value;
+    if (!user || !password){ adminLoginMsg.textContent = 'Enter the user and password.'; adminLoginMsg.classList.add('warn'); return; }
+    const email = user.indexOf('@') >= 0 ? user : user.toLowerCase() + '@' + LEADERBOARD.adminDomain;
+    adminLoginMsg.textContent = 'Signing in…'; adminLoginMsg.classList.remove('warn');
+    try {
+      const res = await lbFetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + encodeURIComponent(LEADERBOARD.apiKey), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, returnSecureToken: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok){
+        const code = String((data && data.error && data.error.message) || '').split(' ')[0];
+        adminLoginMsg.textContent = adminErrors[code] || 'Couldn’t sign in (' + (code || res.status) + ').';
+        adminLoginMsg.classList.add('warn');
+        return;
+      }
+      admin = { uid: data.localId, idToken: data.idToken, refresh: data.refreshToken, exp: Date.now() + Number(data.expiresIn) * 1000 };
+      adminPass.value = '';
+      adminNote = '';
+      showCard('admin');
+      lbFetchBoard(true);
+    } catch (e) {
+      adminLoginMsg.textContent = offlineNow() ? 'You’re offline. Connect to the internet to sign in.' : 'Couldn’t reach Firebase. Try again.';
+      adminLoginMsg.classList.add('warn');
+    }
+  }
+  async function adminToken(){
+    if (!admin) throw { code: 'signed-out' };
+    if (Date.now() < admin.exp - 60000) return admin.idToken;
+    const res = await lbFetch('https://securetoken.googleapis.com/v1/token?key=' + encodeURIComponent(LEADERBOARD.apiKey), {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(admin.refresh),
+    });
+    if (!res.ok){ admin = null; throw { code: 'signed-out' }; }
+    const d = await res.json();
+    Object.assign(admin, { idToken: d.id_token, refresh: d.refresh_token, exp: Date.now() + Number(d.expires_in) * 1000 });
+    return admin.idToken;
+  }
+  // Runs one admin change; shows what went wrong on the edit card if it fails.
+  async function adminWrite(method, body){
+    const uid = adminEditing;
+    adminEditMsg.textContent = method === 'DELETE' ? 'Erasing…' : 'Saving…'; adminEditMsg.classList.remove('warn');
+    try {
+      const res = await lbFetch(lbUrl('scores/' + uid, await adminToken()), body
+        ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { method });
+      if (res.status === 401 || res.status === 403) throw { code: 'refused' };
+      if (!res.ok) throw { code: 'http', status: res.status };
+      const saved = method === 'DELETE' ? null : cleanEntry(await res.json().catch(() => null));
+      const before = lb.scores[uid];
+      if (saved) lb.scores[uid] = saved; else delete lb.scores[uid];
+      lbSave();
+      if (uid === lb.me.uid) lbReconcile(saved, Date.now()); // edited this very phone's entry
+      adminNote = saved ? 'Saved ' + saved.name + '.' : 'Erased ' + (before ? before.name : 'the player') + '.';
+      showCard('admin');
+      lbFetchBoard(true);
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'signed-out'){ adminLoginMsgNext = 'Your admin sign-in ended. Sign in again.'; showCard('admin-login'); return; }
+      adminEditMsg.textContent = code === 'refused'
+        ? 'Firebase refused the change. The database rules need to name your admin account (see the README).'
+        : code === 'http' ? 'Couldn’t save (error ' + e.status + '). Try again.'
+        : offlineNow() ? 'You’re offline. Connect to the internet and try again.' : 'Couldn’t reach Firebase. Try again.';
+      adminEditMsg.classList.add('warn');
+    }
+  }
+  function adminSave(){
+    const name = cleanName(adminName.value), normal = Number(adminNormal.value), hard = Number(adminHard.value);
+    const okLevel = (v) => Number.isInteger(v) && v >= 1 && v <= 1000000;
+    if (!name){ adminEditMsg.textContent = 'Type a name.'; adminEditMsg.classList.add('warn'); return; }
+    if (!okLevel(normal) || !okLevel(hard)){ adminEditMsg.textContent = 'Levels must be whole numbers, 1 or more.'; adminEditMsg.classList.add('warn'); return; }
+    adminWrite('PUT', { name, normal, hard, updated: { '.sv': 'timestamp' } });
+  }
+  function disarmErase(){ clearTimeout(eraseArmed); eraseArmed = 0; adminErase.textContent = 'Erase this player'; adminErase.classList.remove('armed'); }
+  function renderAdmin(){
+    if (adminBox.hidden) return;
+    adminList.textContent = '';
+    const uids = Object.keys(lb.scores).sort((a, b) => lb.scores[a].name.toLowerCase() < lb.scores[b].name.toLowerCase() ? -1 : 1);
+    for (const uid of uids){
+      const s = lb.scores[uid];
+      const row = document.createElement('button'); row.type = 'button'; row.className = 'admin-row'; row.dataset.uid = uid;
+      const nm = document.createElement('span'); nm.textContent = s.name + (uid === lb.me.uid ? ' (this phone)' : '');
+      const lv = document.createElement('small'); lv.textContent = 'Normal ' + s.normal + ' · Hard ' + s.hard;
+      row.appendChild(nm); row.appendChild(lv);
+      adminList.appendChild(row);
+    }
+    if (!uids.length){ const p = document.createElement('p'); p.className = 'board-empty'; p.textContent = lb.loading ? 'Loading…' : 'No players on the board yet.'; adminList.appendChild(p); }
+    adminListMsg.textContent = adminNote || (lb.loading ? 'Loading the latest board…' : lb.readError ? 'Couldn’t refresh · showing the copy from ' + ago(lb.at) : lb.at ? 'Updated ' + ago(lb.at) : '');
+  }
+  // Hold detection on the Level label
+  function holdEnd(){ clearTimeout(holdTimer); holdTimer = 0; }
+  lvlBox.addEventListener('pointerdown', (e) => { if (e.button) return; holdEnd(); holdTimer = setTimeout(() => { holdTimer = 0; openAdmin(); }, 3000); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => lvlBox.addEventListener(t, holdEnd));
   function lbStart(){
     if (!lb.enabled) return;
     lbLoad();
-    lbFetchBoard(true);
-    lbSync();
-    window.addEventListener('online', () => { lbFetchBoard(true); lbSync(); });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden){ lbFetchBoard(false); lbSync(); } });
+    // Read first, then send: that way an admin's edit is seen before this phone saves over it.
+    lbFetchBoard(true).then(lbSync);
+    window.addEventListener('online', () => { lbFetchBoard(true).then(lbSync); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) lbFetchBoard(false).then(lbSync); });
   }
 
   function startPlay(){
@@ -1221,6 +1440,9 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     else if (kind === 'code') showCard('menu');
     else if (kind === 'board') closeBoard();
     else if (kind === 'join') submitName();
+    else if (kind === 'admin-login') adminSignIn();
+    else if (kind === 'admin') closeMenu();
+    else if (kind === 'admin-edit') adminSave();
   }
 
   let resetArmed = 0;
@@ -1232,8 +1454,28 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     if (kind === 'menu') closeMenu();
     else if (kind === 'board') openJoin('board');
     else if (kind === 'join') cancelJoin();
+    else if (kind === 'admin-login') closeMenu();
+    else if (kind === 'admin'){ admin = null; adminNote = ''; announce('Signed out of admin.'); closeMenu(); }
+    else if (kind === 'admin-edit') showCard('admin');
     else openMenu();
   });
+  adminList.addEventListener('click', (e) => {
+    const row = e.target.closest('[data-uid]');
+    if (row && lb.scores[row.dataset.uid]){ adminEditing = row.dataset.uid; adminNote = ''; showCard('admin-edit'); }
+  });
+  adminErase.addEventListener('click', () => {
+    if (!eraseArmed){
+      eraseArmed = setTimeout(disarmErase, 3500);
+      adminErase.textContent = 'Tap again to erase ' + ((lb.scores[adminEditing] || {}).name || 'this player');
+      adminErase.classList.add('armed');
+      return;
+    }
+    disarmErase();
+    adminWrite('DELETE');
+  });
+  adminUser.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); adminPass.focus(); } });
+  adminPass.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); adminSignIn(); } });
+  [adminUser, adminPass, adminName, adminNormal, adminHard].forEach((el) => el.addEventListener('blur', () => { setTimeout(() => window.scrollTo(0, 0), 60); }));
   boardAll.addEventListener('click', openBoard);
   boardBtn.addEventListener('click', openBoard);
   boardJoin.addEventListener('click', () => openJoin('title'));
@@ -1316,7 +1558,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     if (e.button) return;
     unlockAudio();
     const t = e.target instanceof Element ? e.target : null;
-    if (t && t.closest('button, .stepper')) return;
+    if (t && t.closest('button, .stepper, .lvl')) return; // the Level label is held for admin, so it never fires
     if (game.state === 'play'){ e.preventDefault(); fire(); }
     else if (game.state === 'title'){ if (!(t && t.closest('.card'))) startPlay(); }
     else if ((game.state === 'won' || game.state === 'lost') && performance.now() >= game.readyAt) primary();
@@ -1341,6 +1583,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
     if (e.key === 'Escape'){
       if (card.dataset.kind === 'code' && !card.hidden) showCard('menu');
       else if (card.dataset.kind === 'board' && !card.hidden) closeBoard();
+      else if (card.dataset.kind === 'admin-edit' && !card.hidden) showCard('admin');
       else if (game.state === 'menu') closeMenu();
       else openMenu();
       return;

@@ -33,7 +33,7 @@ Players who tap **Join the leaderboard** and pick a name share their furthest le
 - **Turning it off:** empty the `LEADERBOARD` settings near the top of the script in `index.html`, and the board disappears.
 - **Removing an entry:** open the [Firebase console](https://console.firebase.google.com), then Realtime Database → Data → `scores`. Hover over the entry and click the trash icon.
 
-It runs on a free Firebase project (Realtime Database and Anonymous sign-in). The web settings in `index.html` are public by design. These database rules are what protect the data: anyone can read the board, and a phone can only write its own entry, with a 1–16 character name and whole-number levels.
+It runs on a free Firebase project (Realtime Database, Anonymous sign-in, and Email/Password sign-in for the admin). The web settings in `index.html` are public by design. These database rules are what protect the data: anyone can read the board, a phone can only write its own entry, and the one admin account can write any entry. Every entry must have a 1–16 character name and levels from 1 up. Replace `YOUR-ADMIN-UID` with the admin account's User UID (see [Admin](#admin)).
 
 ```json
 {
@@ -42,7 +42,7 @@ It runs on a free Firebase project (Realtime Database and Anonymous sign-in). Th
       ".read": true,
       ".indexOn": ["normal", "hard"],
       "$uid": {
-        ".write": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'YOUR-ADMIN-UID')",
         ".validate": "newData.hasChildren(['name', 'normal', 'hard', 'updated'])",
         "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
         "normal": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000" },
@@ -55,7 +55,21 @@ It runs on a free Firebase project (Realtime Database and Anonymous sign-in). Th
 }
 ```
 
-The game runs on players' phones, so someone tech-savvy could post a made-up level. Delete anything that looks wrong.
+The game runs on players' phones, so someone tech-savvy could post a made-up level. Fix or erase it from the admin screen.
+
+## Admin
+
+Hold the **Level** label at the top left for 3 seconds, then sign in with user `Admin` and the admin password. Tap any player to rename them, change their Normal and Hard levels, or erase them. Erasing takes two taps.
+
+- **Changes stick.** A player's phone takes your edit the next time it connects. Their game progress follows the new levels, and a renamed or erased player isn't put back by their own phone. An erased player can choose to join again.
+- **Staying signed in:** you stay signed in until you tap **Sign out** or close the app. Holding Level again while signed in goes straight to the player list.
+- **Where the password lives:** only in Firebase. It is never in this repository or the game's code. Anyone who finds the hidden sign-in still needs the password, and Firebase slows down repeated wrong guesses, so use a password that isn't easy to guess.
+
+One-time setup in the [Firebase console](https://console.firebase.google.com):
+
+1. **Authentication → Sign-in method → Add new provider → Email/Password.** Turn on **Email/Password**, leave Email link off, and click **Save**.
+2. **Authentication → Users → Add user.** Use email `admin@spoke-shot.firebaseapp.com` and your admin password. (The game turns the user name `Admin` into that address.) Copy the new user's **User UID**.
+3. **Realtime Database → Rules.** Put that UID in place of `YOUR-ADMIN-UID` in the rules above, then click **Publish**.
 
 ## Putting it on a phone
 
