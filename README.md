@@ -33,7 +33,7 @@ Players who tap **Join the leaderboard** and pick a name share their furthest le
 - **Turning it off:** empty the `LEADERBOARD` settings near the top of the script in `index.html`, and the board disappears.
 - **Removing an entry:** open the [Firebase console](https://console.firebase.google.com), then Realtime Database → Data → `scores`. Hover over the entry and click the trash icon.
 
-It runs on a free Firebase project (Realtime Database, Anonymous sign-in, and Email/Password sign-in for the admin). The web settings in `index.html` are public by design. These database rules are what protect the data: anyone can read the board, a phone can only write its own entry, and the one admin account can write any entry. Every entry must have a 1–16 character name and levels from 1 up. Replace `YOUR-ADMIN-UID` with the admin account's User UID (see [Admin](#admin)).
+It runs on a free Firebase project (Realtime Database, Anonymous sign-in, and Email/Password sign-in for the admin). The web settings in `index.html` are public by design. These database rules are what protect the data: anyone can read the board, a phone can only write its own entry, and the admin account (`admin@spoke-shot.firebaseapp.com`, signed in with its password) can write any entry. Every entry must have a 1–16 character name and levels from 1 up.
 
 ```json
 {
@@ -42,7 +42,7 @@ It runs on a free Firebase project (Realtime Database, Anonymous sign-in, and Em
       ".read": true,
       ".indexOn": ["normal", "hard"],
       "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || auth.uid === 'YOUR-ADMIN-UID')",
+        ".write": "auth != null && (auth.uid === $uid || (auth.token.email === 'admin@spoke-shot.firebaseapp.com' && auth.token.firebase.sign_in_provider === 'password'))",
         ".validate": "newData.hasChildren(['name', 'normal', 'hard', 'updated'])",
         "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
         "normal": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000" },
@@ -68,8 +68,12 @@ Hold the **Level** label at the top left for 3 seconds, then sign in with user `
 One-time setup in the [Firebase console](https://console.firebase.google.com):
 
 1. **Authentication → Sign-in method → Add new provider → Email/Password.** Turn on **Email/Password**, leave Email link off, and click **Save**.
-2. **Authentication → Users → Add user.** Use email `admin@spoke-shot.firebaseapp.com` and your admin password. (The game turns the user name `Admin` into that address.) Copy the new user's **User UID**.
-3. **Realtime Database → Rules.** Put that UID in place of `YOUR-ADMIN-UID` in the rules above, then click **Publish**.
+2. **Authentication → Users → Add user.** Use email `admin@spoke-shot.firebaseapp.com` and your admin password. (The game turns the user name `Admin` into that address.)
+3. **Realtime Database → Rules.** Paste the rules above and click **Publish**.
+
+Do step 2 before step 3. The rules trust whoever owns that email address, and Firebase never lets a second account take an address that's already in use. Creating the account first claims it.
+
+**Forgot the password?** "Reset password" sends an email, and that address has no inbox. Instead, delete the admin user and add it again with a new password. The rules don't need to change.
 
 ## Putting it on a phone
 
