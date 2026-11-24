@@ -33,7 +33,7 @@ Players who tap **Join the leaderboard** and pick a name share their furthest le
 - **Turning it off:** empty the `LEADERBOARD` settings near the top of the script in `index.html`, and the board disappears.
 - **Removing an entry:** open the [Firebase console](https://console.firebase.google.com), then Realtime Database → Data → `scores`. Hover over the entry and click the trash icon.
 
-It runs on a free Firebase project (Realtime Database, Anonymous sign-in, and Email/Password sign-in for the admin). The web settings in `index.html` are public by design. These database rules are what protect the data: anyone can read the board, a phone can only write its own entry, and the admin account (`admin@spoke-shot.firebaseapp.com`, signed in with its password) can write any entry. Every entry must have a 1–16 character name and levels from 1 up.
+It runs on a free Firebase project (Realtime Database, Anonymous sign-in, and Email/Password sign-in for the admin). The web settings in `index.html` are public by design. These database rules are what protect the data: anyone can read the board, a phone can only write its own entry, and the admin account (`admin@spoke-shot.firebaseapp.com`) can write any entry. Only Anonymous and Email/Password sign-in are turned on, so no other kind of account can carry that email. Every entry must have a 1–16 character name and levels from 1 up.
 
 ```json
 {
@@ -42,7 +42,7 @@ It runs on a free Firebase project (Realtime Database, Anonymous sign-in, and Em
       ".read": true,
       ".indexOn": ["normal", "hard"],
       "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || (auth.token.email === 'admin@spoke-shot.firebaseapp.com' && auth.token.firebase.sign_in_provider === 'password'))",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'admin@spoke-shot.firebaseapp.com')",
         ".validate": "newData.hasChildren(['name', 'normal', 'hard', 'updated'])",
         "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 16" },
         "normal": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000000" },
