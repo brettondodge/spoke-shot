@@ -277,7 +277,10 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   const BEAD = 0.0735;   // bead radius as a share of the orbit radius (about 42 beads fit edge to edge)
   // Leaderboard: the Firebase project's web settings. Both values are public by design; the
   // database rules (see README) are what protect the data. Leave them empty to turn the board off.
-  const LEADERBOARD = { apiKey: '', databaseURL: '' };
+  const LEADERBOARD = {
+    apiKey: 'AIzaSyBXXixxqEgVBje3X4VyJAL4WcGep5dAv9c',                // Firebase project "spoke-shot"
+    databaseURL: 'https://spoke-shot-default-rtdb.firebaseio.com',
+  };
   const DISPLAY = '"Bagel Fat One","Arial Rounded MT Bold",sans-serif';
   const UI = '"Atkinson Hyperlegible",system-ui,sans-serif';
 
