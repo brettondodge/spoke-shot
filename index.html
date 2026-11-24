@@ -1580,6 +1580,42 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   }, { passive: false });
   document.addEventListener('gesturestart', (e) => e.preventDefault());
   document.addEventListener('dblclick', (e) => e.preventDefault());
+
+  // On-screen keyboard: iPhones (and newer Android Chrome) slide the keyboard over the page
+  // without resizing it, which hid the name and password boxes on the bottom-anchored card.
+  // While a box in the card has focus, lift the card above the keyboard, fit it into the
+  // space that's left, and scroll the box into view inside the card.
+  const vv = window.visualViewport;
+  function typingInCard(){
+    const el = document.activeElement;
+    return el && el.tagName === 'INPUT' && card.contains(el) ? el : null;
+  }
+  function keepInView(el){
+    const top = el.offsetTop - 8, bottom = el.offsetTop + el.offsetHeight + 8;
+    if (top < card.scrollTop) card.scrollTop = top;
+    else if (bottom > card.scrollTop + card.clientHeight) card.scrollTop = bottom - card.clientHeight;
+  }
+  function fitKeyboard(){
+    if (!vv) return;
+    const el = typingInCard();
+    const keyboard = document.documentElement.clientHeight - vv.height;
+    if (el && keyboard > 100){
+      if (window.scrollY || vv.offsetTop) window.scrollTo(0, 0); // undo the phone's own attempt to pan the page
+      const sr = stage.getBoundingClientRect();
+      card.style.bottom = Math.max(16, Math.round(sr.bottom - vv.height + 12)) + 'px';
+      card.style.maxHeight = Math.max(160, Math.round(vv.height - Math.max(0, sr.top) - 24)) + 'px';
+      keepInView(el);
+    } else if (card.style.bottom || card.style.maxHeight){
+      card.style.bottom = ''; card.style.maxHeight = '';
+    }
+  }
+  if (vv){
+    vv.addEventListener('resize', fitKeyboard);
+    vv.addEventListener('scroll', fitKeyboard);
+    // the keyboard animates in, so check again once it has settled
+    card.addEventListener('focusin', () => { fitKeyboard(); setTimeout(fitKeyboard, 120); setTimeout(fitKeyboard, 400); });
+    card.addEventListener('focusout', () => { setTimeout(fitKeyboard, 60); });
+  }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape'){
       if (card.dataset.kind === 'code' && !card.hidden) showCard('menu');
